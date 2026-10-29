@@ -1,0 +1,84 @@
+[package]
+name = "legible-win"
+description = "Legible's Windows layer: paths, logging, the window and WebView2, and later the clipboard and file associations."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+legible-core.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+tracing.workspace = true
+tracing-subscriber.workspace = true
+wry.workspace = true
+tao.workspace = true
+muda.workspace = true
+# WebView2's request filter (internet pictures). Already in the build through wry, at this
+# version; and URLs parsed as WebView2 parses them. Both MIT or Apache-2.0.
+url = "2.5.8"
+webview2-com = "0.39.1"
+windows = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_Globalization",
+    "Win32_Graphics_Gdi",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Pipes",
+    "Win32_System_Registry",
+    "Win32_System_RemoteDesktop",
+    "Win32_System_Shutdown",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_Storage_EnhancedStorage",
+    "Win32_System_Com",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Variant",
+    "Win32_UI_Accessibility",
+    "Win32_UI_Controls",
+    "Win32_UI_Controls_Dialogs",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_Common",
+    "Win32_UI_Shell_PropertiesSystem",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[target.'cfg(windows)'.dev-dependencies]
+# Its own tests drive the real window (tests/shell.rs): this turns the harness on for test
+# builds only. A build of the exe (`cargo build --release --bin legible`) never has it.
+legible-win = { path = ".", features = ["harness"] }
+tempfile.workspace = true
+# PrintWindow, DWM's frame bounds and GDI+'s PNG encoder: the README's pictures
+# (examples/readme-shots.rs).
+windows = { workspace = true, features = [
+    "Win32_System_Com",
+    "Win32_Storage_FileSystem",
+    "Win32_Storage_Xps",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_GdiPlus",
+] }
+
+# Build-only: compiles legible.exe's manifest into the test exes (build.rs), as legible's own
+# build does into the exe. Uses the Windows SDK's rc.exe. MIT.
+[build-dependencies]
+embed-resource = "3.0.12"
+
+[features]
+# Only for checks/remote-images: a request filter whose refusals can be made to fail. Nothing
+# shipped turns it on.
+checks = []
+# Only for tests: shell::harness, which drives the real window in-process and keeps it out of
+# the user's state (no app identity, no Jump List, no focus, no real clipboard or dialogs).
+# Turned on by the dev-dependency above; nothing shipped turns it on.
+harness = []
+
+[lints]
+workspace = true

@@ -1,0 +1,5 @@
+# The C runtime is linked into the exe, so it needs no Visual C++ redistributable: Legible
+# installs per user with no admin rights and runs portable from a zip, so it can't rely on one
+# being there. The Universal CRT (api-ms-win-crt-*) is part of Windows 10 and 11.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

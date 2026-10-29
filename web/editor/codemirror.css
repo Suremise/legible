@@ -1,0 +1,176 @@
+/* The editor's look, inside its shadow root (web/editor/editor.js). CodeMirror's own styles go
+   into the same root as a constructed stylesheet; this is Legible's, loaded from its origin as
+   the CSP allows. The page's colour and font variables (web/doc/document.css) reach in: custom
+   properties inherit through the shadow boundary, so the editor follows the theme.
+
+   The host's classes choose the font: serif (the Serif reading style) and monospace (the
+   editor-font setting); neither is Sans.
+
+   CodeMirror's base theme scopes its rules with a class of its own (`.ͼ1 .cm-content`) and its
+   sheets come later in the cascade, so each rule here for CodeMirror's elements starts with
+   `:host .editor`, to outrank them. */
+
+:host {
+  display: block;
+  height: 100%;
+  font-family: var(--sans);
+  font-size: calc(16px * var(--zoom, 1));
+  color: var(--text);
+  background: var(--bg);
+  color-scheme: inherit;
+}
+
+:host(.serif) {
+  font-family: var(--serif);
+}
+
+:host(.monospace) {
+  font-family: var(--mono);
+  font-size: calc(15px * var(--zoom, 1));
+}
+
+.editor {
+  height: 100%;
+}
+
+:host .editor .cm-editor {
+  height: 100%;
+  color: var(--text);
+  background: var(--bg);
+}
+
+:host .editor .cm-editor.cm-focused {
+  outline: none;
+}
+
+/* Text as a document's: its font, a reading line height, soft-wrapped in the reading column. */
+:host .editor .cm-scroller {
+  font-family: inherit;
+  line-height: 1.6;
+}
+
+:host .editor .cm-content {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: calc(var(--measure, 72ch) + 64px);
+  margin: 0 auto;
+  padding: 32px 32px 96px;
+  caret-color: var(--text);
+}
+
+:host .editor .cm-line {
+  padding: 0;
+}
+
+:host .editor .cm-cursor,
+:host .editor .cm-dropCursor {
+  border-left-color: var(--text);
+}
+
+:host .editor .cm-selectionBackground,
+:host .editor .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground,
+:host .editor .cm-content ::selection {
+  background: var(--selection);
+}
+
+:host .editor .cm-activeLine {
+  background: transparent;
+}
+
+/* Markdown, lightly: the marks muted, the structure in the document's own colours. */
+.md-heading {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.md-heading-1 {
+  font-size: 1.35em;
+}
+
+.md-heading-2 {
+  font-size: 1.2em;
+}
+
+.md-heading-3 {
+  font-size: 1.08em;
+}
+
+.md-mark {
+  color: var(--text-muted);
+}
+
+.md-strong {
+  font-weight: 600;
+}
+
+.md-emphasis {
+  font-style: italic;
+}
+
+.md-strike {
+  text-decoration: line-through;
+}
+
+.md-link {
+  color: var(--accent);
+}
+
+.md-url {
+  color: var(--text-muted);
+}
+
+.md-code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  color: var(--code-text);
+  background: var(--code-bg);
+  border-radius: 3px;
+}
+
+.md-quote {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.md-meta {
+  color: var(--hl-meta);
+}
+
+/* Find and replace: the panel above the text, in the chrome's colours. */
+:host .editor .cm-panels {
+  color: var(--text);
+  background: var(--surface);
+}
+
+:host .editor .cm-panels-top {
+  border-bottom: 1px solid var(--rule);
+}
+
+:host .editor .cm-search {
+  font-family: var(--sans);
+  font-size: 13px;
+}
+
+:host .editor .cm-search input,
+:host .editor .cm-search button {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+
+:host .editor .cm-search input:focus-visible,
+:host .editor .cm-search button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+:host .editor .cm-searchMatch {
+  background: light-dark(#fde68a, #5c4a00);
+}
+
+:host .editor .cm-searchMatch.cm-searchMatch-selected {
+  background: light-dark(#f59e0b, #e8a33d);
+  color: #1b1b1b;
+}

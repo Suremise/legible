@@ -1,0 +1,13 @@
+Nasty HTML
+
+a javascript link
+
+upper-case javascript
+
+a file outside the folder
+
+handlers and styles
+
+☐
+
+[remote]

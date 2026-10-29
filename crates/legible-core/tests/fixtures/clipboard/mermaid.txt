@@ -1,0 +1,6 @@
+Flow
+
+flowchart LR
+  A["Start <b>here</b>"] --> B{"Ok & done?"}
+
+console.log("not a diagram");

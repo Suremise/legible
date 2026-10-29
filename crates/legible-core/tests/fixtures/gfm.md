@@ -1,0 +1,34 @@
+# Quarterly report
+
+Some *emphasis*, **strong**, ~~struck~~ and `inline code`, with a bare link to https://example.com
+and www.example.org, and a [titled link](https://example.com/page "The page").
+
+> A block quote,
+> over two lines.
+
+- [x] Done
+- [ ] Not yet
+  - A nested item
+
+1. First
+2. Second
+
+| Name | Amount | Notes |
+|:-----|-------:|:-----:|
+| A    | 1,000  | on time |
+| B    | 2,500  | `late` |
+
+```rust
+fn main() {
+    println!("<hello>");
+}
+```
+
+    indented code
+
+---
+
+A line with a footnote.[^note] And another.[^2]
+
+[^note]: The note, with *emphasis*.
+[^2]: The second note.

@@ -1,0 +1,42 @@
+name: Bug report
+description: Something in Legible doesn't work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting it. **A security problem?** Please don't open an issue: report it privately, as [SECURITY.md](https://github.com/Suremise/legible/blob/main/SECURITY.md) says.
+
+        Before attaching or pasting anything, check it for things you'd rather keep private: a document's text, names, and folder names in paths. A small made-up document that shows the problem is best.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead. A screenshot helps.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to show it
+      description: What you opened and clicked or typed. If it depends on the document, attach a small one that shows it (rename it to .txt if GitHub won't take .md).
+      placeholder: |
+        1. Open the attached notes.md
+        2. Choose Split
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: about
+    attributes:
+      label: About Legible
+      description: In Legible, Help > About Legible, then Copy, and paste it here. It has the version, how it's installed, and the WebView2 and Windows versions.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: The log
+      description: If Legible closed or did something odd, the newest file in `logs\` (in `%APPDATA%\Legible\`, or beside legible.exe for a portable copy). Logs hold file paths, so check them first.
+      render: text

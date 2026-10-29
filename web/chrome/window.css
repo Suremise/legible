@@ -1,0 +1,1098 @@
+/* The window's page round the document: the chrome (web/chrome/chrome.js) and what it changes
+   about the page. The document's own look, colours and fonts included, is web/doc/document.css;
+   this uses its colour variables, so the chrome follows the same theme.
+
+   chrome.js sets these on <html> through the CSSOM (the CSP allows no inline styles): --zoom
+   (the document's zoom, 1 = 100%) and --outline-width; and the classes outline-open and
+   find-open. What moves with the bars it sets on the elements that follow them (chrome.js,
+   Layout), over the defaults here: --chrome-top (the toolbar's height, and the bars' under
+   it), --status-height and the bars' own heights on the chrome's elements, and plain values on
+   the page, the document and the outline. */
+
+:root {
+  --chrome-bg: var(--surface);
+  --chrome-hover: light-dark(#e6e6e6, #3a3a3a);
+  --chrome-pressed: var(--selection);
+  --chrome-shadow: light-dark(rgb(0 0 0 / 0.14), rgb(0 0 0 / 0.5));
+  --find-match: light-dark(#fde68a, #5c4a00);
+  --find-current: light-dark(#f59e0b, #e8a33d);
+  --find-current-text: #1b1b1b;
+  /* The toolbar strip: a layer of its own, a step lighter than the menu bar above it in dark
+     and a touch whiter in light, with a hairline under it. */
+  --toolbar-bg: light-dark(#f9f9f9, #333333);
+  --toolbar-rule: light-dark(#d6d6d6, #4a4a4a);
+  /* The outline of a group of buttons on the strip (View, Split and Edit): 3:1 against the
+     strip, as a control's boundary needs, so the group keeps its shape in either theme. */
+  --group-border: light-dark(#8c8c8c, #808080);
+  /* The bars over the document, as Windows' InfoBar: information and choices on a tint of the
+     accent, warnings about the reader's work in amber (--warning, --warning-bg), each with its
+     icon in its stripe's colour. crates/legible-core/tests/contrast.rs checks the tints. */
+  --info-bg: light-dark(#e1eefa, #1e3142);
+  --bar-stripe: 5px;
+  --icon-info: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1zM7.3 7v5h1.4V7zM8 3.8a.9.9 0 1 0 0 1.8.9.9 0 0 0 0-1.8z' fill-rule='evenodd'/%3E%3C/svg%3E");
+  --icon-warning: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1.2c.5 0 .9.3 1.2.7l6 10.6c.5.9-.1 2-1.2 2H2c-1 0-1.7-1.1-1.2-2l6-10.6c.3-.4.7-.7 1.2-.7zM7.2 5l.2 4.6h1.2L8.8 5zM8 10.5a.9.9 0 1 0 0 1.8.9.9 0 0 0 0-1.8z' fill-rule='evenodd'/%3E%3C/svg%3E");
+  --icon-error: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M5.1 1h5.8L15 5.1v5.8L10.9 15H5.1L1 10.9V5.1zM7.2 4l.2 5h1.2l.2-5zM8 10.2a.9.9 0 1 0 0 1.8.9.9 0 0 0 0-1.8z' fill-rule='evenodd'/%3E%3C/svg%3E");
+}
+
+/* The document under the fixed chrome: the toolbar (and find bar) above, the outline to the
+   left. The page itself scrolls, so print and the document's own rules are as they were. A
+   heading jumped to comes to rest under the chrome, by its own scroll margin (document.css). */
+:root {
+  scroll-padding-top: 40px;
+}
+
+body {
+  padding-top: 40px;
+  padding-bottom: 0;
+}
+
+:root.outline-open body {
+  padding-left: var(--outline-width, 240px);
+}
+
+#document {
+  zoom: var(--zoom, 1);
+}
+
+/* A block off the screen isn't laid out or painted until it's scrolled near, so a long
+   document is drawn as soon as its first screen is (the browser keeps each block's height once
+   it has been shown). Only the blocks Legible renders: the headings always are laid out (the
+   outline, its jumps and the reader's place are measured by them), and so are a document's own
+   HTML boxes, whose margins could reach out of them. In a document of thousands of blocks,
+   chrome.js lays them out once it's drawn, marking each data-laid-out. */
+@media screen {
+  #document > :is(p, ul, ol, blockquote, pre, table, hr, .table-frame, .code-block, .alert, .diagram,
+    details.properties, section.footnotes):not([data-laid-out]) {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 80px;
+    /* What's drawn just outside it, as a focused link's ring at its edge, isn't cut off. */
+    overflow-clip-margin: 8px;
+  }
+
+  /* A contained block keeps its children's margins inside it: these reached out past its end
+     (a loose list's last paragraph, in a list, a nested one or a quote; a diagram's source),
+     where its own margin took them in, so here they're none. */
+  #document > :is(ul, ol) > li:last-child > :last-child,
+  #document > :is(ul, ol) > li:last-child > :is(ul, ol):last-child > li:last-child > :last-child,
+  #document > blockquote > :is(ul, ol):last-child > li:last-child > :last-child,
+  #document > .diagram > :last-child {
+    margin-bottom: 0;
+  }
+}
+
+#document :is(h1, h2, h3, h4, h5, h6):focus {
+  outline: none;
+}
+
+#document :is(h1, h2, h3, h4, h5, h6):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+}
+
+/* The empty window's line ("Open a Markdown file…"). */
+#document > .empty {
+  color: var(--text-muted);
+}
+
+::highlight(legible-find) {
+  background-color: var(--find-match);
+  color: var(--text);
+}
+
+::highlight(legible-find-current) {
+  background-color: var(--find-current);
+  color: var(--find-current-text);
+}
+
+/* Select all (Ctrl+A, Edit → Select all) takes the document alone: the chrome round it is never
+   selected. What the reader types or copies stays selectable: the find field, and the dialogs
+   (Settings, and About's notices), which aren't in this list. */
+#toolbar,
+#find,
+#outline,
+#file-bar,
+#pictures-bar,
+#default-bar,
+#updated,
+#toast,
+#notice {
+  user-select: none;
+}
+
+.find-field {
+  user-select: text;
+}
+
+/* --- Buttons --------------------------------------------------------------------------------- */
+
+#toolbar,
+#find,
+#outline,
+dialog.panel {
+  font: 14px/1.4 var(--sans);
+  color: var(--text);
+}
+
+.tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: default;
+}
+
+.tool:hover:not([aria-disabled="true"]) {
+  background: var(--chrome-hover);
+}
+
+.tool[aria-pressed="true"],
+.tool[aria-expanded="true"] {
+  background: var(--chrome-pressed);
+}
+
+.tool[aria-disabled="true"] {
+  opacity: 0.45;
+}
+
+.tool:focus-visible,
+.menu-item:focus-visible,
+.splitter:focus-visible,
+#outline a:focus-visible,
+dialog.panel :is(input, select, a, pre):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* --- The toolbar ----------------------------------------------------------------------------- */
+
+#toolbar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 3;
+  box-sizing: border-box;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 8px;
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--toolbar-rule);
+}
+
+#toolbar .group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.segmented {
+  display: flex;
+  margin-left: 8px;
+  border: 1px solid var(--group-border);
+  border-radius: 5px;
+  padding: 1px;
+}
+
+.segmented .tool {
+  height: 28px;
+}
+
+.zoom {
+  display: flex;
+  align-items: center;
+}
+
+.zoom-level {
+  min-width: 52px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Menus ----------------------------------------------------------------------------------- */
+
+.menu-wrap {
+  position: relative;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 4;
+  min-width: 200px;
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px var(--chrome-shadow);
+}
+
+.menu[hidden] {
+  display: none;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.menu-item:hover:not([aria-disabled="true"]),
+.menu-item:focus {
+  background: var(--chrome-hover);
+}
+
+.menu-item[aria-disabled="true"] {
+  opacity: 0.45;
+}
+
+.menu-item .check {
+  width: 16px;
+  text-align: center;
+}
+
+.menu-item[aria-checked="true"] .check::before {
+  content: "✓";
+}
+
+.menu-heading {
+  padding: 6px 10px 2px 30px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.menu-hint {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--rule);
+}
+
+/* --- Find ------------------------------------------------------------------------------------ */
+
+#find {
+  position: fixed;
+  top: 40px;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 0 12px;
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--toolbar-rule);
+}
+
+#find[hidden] {
+  display: none;
+}
+
+.find-field {
+  width: min(320px, 50vw);
+  height: 30px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.find-field:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -1px;
+}
+
+.find-field.no-match {
+  border-color: var(--caution);
+}
+
+.find-count {
+  min-width: 84px;
+  padding: 0 6px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* --- The outline ----------------------------------------------------------------------------- */
+
+#outline {
+  position: fixed;
+  top: 40px;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  width: var(--outline-width, 240px);
+  background: var(--chrome-bg);
+  border-right: 1px solid var(--rule);
+}
+
+#outline[hidden] {
+  display: none;
+}
+
+.outline-list {
+  height: 100%;
+  overflow: auto;
+  padding: 12px 8px 24px 4px;
+  box-sizing: border-box;
+}
+
+#outline ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+#outline ul ul {
+  padding-left: 14px;
+}
+
+/* As the document's blocks (above): an entry out of the panel's sight isn't laid out until it's
+   scrolled near, for a document with thousands of headings. The links' focus ring isn't cut
+   off. */
+#outline li {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 28px;
+  overflow-clip-margin: 4px;
+}
+
+#outline a {
+  display: block;
+  padding: 4px 8px;
+  border-left: 3px solid transparent;
+  border-radius: 0 4px 4px 0;
+  color: var(--text-muted);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#outline a:hover {
+  background: var(--chrome-hover);
+  color: var(--text);
+}
+
+#outline a[aria-current] {
+  border-left-color: var(--accent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.splitter {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.splitter:hover {
+  background: var(--chrome-pressed);
+}
+
+/* --- Settings and About ---------------------------------------------------------------------- */
+
+dialog.panel {
+  width: min(620px, calc(100vw - 48px));
+  max-height: calc(100vh - 96px);
+  padding: 0;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 16px 48px var(--chrome-shadow);
+}
+
+dialog.panel::backdrop {
+  background: rgb(0 0 0 / 0.3);
+}
+
+.panel-head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 12px 8px 20px;
+  background: var(--bg);
+}
+
+.panel-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* Settings' tabs, under its heading: the one shown in the text colour over an accent bar. */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 20px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.tab {
+  position: relative;
+  padding: 6px 10px 8px;
+  border: 0;
+  border-radius: 4px 4px 0 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  cursor: default;
+}
+
+/* The first tab's text starts where the heading and the setting names do: its padding sits
+   in the margin, left of the rule under the tabs. */
+.tab:first-child {
+  margin-left: -10px;
+}
+
+.tab:hover {
+  background: var(--chrome-hover);
+  color: var(--text);
+}
+
+.tab[aria-selected="true"] {
+  color: var(--text);
+}
+
+.tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--accent);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+/* The panels share one cell, so the dialog keeps the tallest one's height whichever is shown,
+   and one column of names (the longest of every tab's), so a tab's choices line up with the
+   next tab's. A hidden panel keeps its place but isn't seen, reached or read. */
+.tab-panels {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+}
+
+.tab-panels > [role="tabpanel"] {
+  grid-area: 1 / 1 / 2 / 3;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-content: start;
+}
+
+.tab-panels > [role="tabpanel"][hidden] {
+  visibility: hidden;
+}
+
+.panel-body {
+  padding: 8px 20px 16px;
+}
+
+/* A setting: its name, then its choices on one line (a group of checkboxes, or the default
+   app's buttons, one under another). */
+.setting {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  column-gap: 24px;
+  align-items: baseline;
+  padding: 7px 0;
+}
+
+.setting-name {
+  font-weight: 600;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 18px;
+  min-width: 0;
+}
+
+[role="group"] > .choices {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.choices label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel-body input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.panel-body select {
+  padding: 4px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+/* A note under a setting, only where one's needed (a portable copy's). */
+.panel-body .hint {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* A narrow window: each name over its choices. */
+@media (max-width: 520px) {
+  .tab-panels > [role="tabpanel"],
+  .setting {
+    grid-template-columns: 1fr;
+    grid-column: 1 / -1;
+  }
+
+  .setting {
+    row-gap: 4px;
+  }
+}
+
+.wide-button {
+  height: auto;
+  min-height: 32px;
+  border-color: var(--rule);
+  justify-content: flex-start;
+}
+
+.save-status:empty {
+  display: none;
+}
+
+.save-status {
+  margin: 0 20px 16px;
+  color: var(--caution);
+}
+
+/* About Legible: centred, the icon over the name. */
+dialog.panel.about {
+  width: min(440px, calc(100vw - 48px));
+  padding: 24px 24px 16px;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.about-icon {
+  display: block;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto;
+}
+
+.about .app-name {
+  margin: 8px 0 2px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.about-tagline,
+.about-licence,
+.about-privacy {
+  margin: 6px auto;
+  max-width: 360px;
+  color: var(--text-muted);
+}
+
+.about-notice {
+  margin: 10px auto 4px;
+  max-width: 380px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.about-table {
+  margin: 14px auto;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.about-table th,
+.about-table td {
+  padding: 3px 8px;
+}
+
+.about-table th {
+  color: var(--text-muted);
+  font-weight: normal;
+}
+
+.about-table td {
+  color: var(--text);
+  user-select: text;
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.link:focus-visible,
+.about-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.about-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.about-button {
+  min-width: 88px;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.about-button:hover {
+  background: var(--chrome-hover);
+}
+
+.about-button.default {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* The licence, the notices and the release notes, over About: the dialog fits the window and
+   only the text scrolls. */
+dialog.panel.reading {
+  width: min(720px, calc(100vw - 48px));
+  padding: 0 20px 16px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+dialog.panel.reading[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.reading :is(.reading-text, .reading-doc) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.reading .panel-head {
+  padding-left: 0;
+}
+
+.reading-text {
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  background: var(--surface);
+  border-radius: 4px;
+  font: 12px/1.5 var(--mono);
+  /* As written, long lines wrapped: the notices' ruled lines and the licence read as they are. */
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.reading-text[hidden],
+.reading-doc[hidden] {
+  display: none;
+}
+
+/* The release notes, rendered: a document's look (web/doc/document.css's, which is #document's
+   own), in the reading view's room. */
+.reading-doc {
+  overflow: auto;
+  padding: 4px 4px 8px;
+  font: 15px/1.6 var(--sans);
+  color: var(--text);
+  overflow-wrap: break-word;
+  user-select: text;
+}
+
+.reading-doc > :first-child {
+  margin-top: 0;
+}
+
+.reading-doc :where(p, ul, ol, blockquote, pre, hr) {
+  margin: 0 0 0.9em;
+}
+
+.reading-doc :is(h1, h2, h3, h4) {
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 1.4em 0 0.5em;
+}
+
+.reading-doc h1 {
+  font-size: 1.75em;
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid var(--rule);
+}
+
+.reading-doc h2 {
+  font-size: 1.35em;
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid var(--rule);
+}
+
+.reading-doc h3 {
+  font-size: 1.15em;
+}
+
+.reading-doc a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.reading-doc a:is(:hover, :focus-visible) {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+.reading-doc :is(ul, ol) {
+  padding-left: 1.6em;
+}
+
+.reading-doc code {
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--code-bg);
+  color: var(--code-text);
+  font: 0.9em var(--mono);
+}
+
+.reading-doc:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* --- The bars: each one's icon leads, in its stripe's colour ---------------------------------- */
+
+:is(#file-bar, #pictures-bar, #default-bar)::before,
+#notice::before {
+  content: "";
+  flex: none;
+  width: 16px;
+  height: 16px;
+  background: var(--bar-kind, var(--accent));
+  mask: var(--bar-icon, var(--icon-info)) center / contain no-repeat;
+}
+
+/* --- Live reload: the moved-or-deleted bar and the "Updated" note --------------------------- */
+
+#file-bar {
+  position: fixed;
+  top: calc(40px + var(--find-height, 0px));
+  left: 0;
+  right: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 14px;
+  font: 14px/1.4 var(--sans);
+  color: var(--text);
+  background: var(--warning-bg);
+  border-bottom: 1px solid var(--rule);
+  border-left: var(--bar-stripe) solid var(--warning);
+  --bar-kind: var(--warning);
+  --bar-icon: var(--icon-warning);
+}
+
+/* Pictures from the internet: the bar that asks (or says why none can show), under the file's. */
+#pictures-bar {
+  position: fixed;
+  top: calc(40px + var(--find-height, 0px) + var(--file-height, 0px));
+  left: 0;
+  right: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  min-height: 44px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 14px;
+  font: 14px/1.4 var(--sans);
+  color: var(--text);
+  background: var(--info-bg);
+  border-bottom: 1px solid var(--rule);
+  border-left: var(--bar-stripe) solid var(--accent);
+}
+
+.pictures-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* The default app: the offer to make Legible the default for Markdown files, under the others. */
+#default-bar {
+  position: fixed;
+  top: calc(40px + var(--find-height, 0px) + var(--file-height, 0px) + var(--pictures-height, 0px));
+  left: 0;
+  right: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  min-height: 44px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 14px;
+  font: 14px/1.4 var(--sans);
+  color: var(--text);
+  background: var(--info-bg);
+  border-bottom: 1px solid var(--rule);
+  border-left: var(--bar-stripe) solid var(--accent);
+}
+
+.default-app .default-status {
+  margin: 0;
+}
+
+#pictures-bar[hidden],
+.pictures-actions[hidden],
+#default-bar[hidden],
+.default-app [hidden],
+#file-bar[hidden],
+#updated[hidden] {
+  display: none;
+}
+
+.file-bar-text {
+  flex: 1;
+}
+
+#updated {
+  position: fixed;
+  top: calc(var(--chrome-top, 40px) + 8px);
+  right: 20px;
+  z-index: 2;
+  padding: 4px 10px;
+  font: 13px/1.4 var(--sans);
+  color: var(--text-muted);
+  background: var(--chrome-bg);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  /* It may sit over the document's first line in a narrow window: clicks go through. */
+  pointer-events: none;
+}
+
+/* --- The status bar: a thin strip at the bottom, on the toolbar's layer (chrome.js) ---------- */
+
+#status-bar {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 3;
+  box-sizing: border-box;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 8px;
+  font: 12px/1.4 var(--sans);
+  color: var(--text-muted);
+  background: var(--toolbar-bg);
+  border-top: 1px solid var(--toolbar-rule);
+  user-select: none;
+}
+
+#status-bar[hidden],
+#status-bar [hidden] {
+  display: none;
+}
+
+.status-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.status-path {
+  min-width: 0;
+  padding: 1px 4px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+
+.status-path:hover {
+  background: var(--chrome-hover);
+  color: var(--text);
+}
+
+.status-path:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -1px;
+}
+
+.status-note {
+  flex: none;
+  font-style: italic;
+}
+
+.status-edit {
+  display: flex;
+  gap: 16px;
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- The toast: Copied, Saved ------------------------------------------------------------- */
+
+#toast {
+  position: fixed;
+  bottom: calc(16px + var(--status-height, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  padding: 8px 12px 8px 16px;
+  font: 14px/1.4 var(--sans);
+  color: var(--text);
+  background: var(--chrome-bg);
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.15);
+}
+
+#toast[hidden] {
+  display: none;
+}
+
+.toast-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.toast-actions:empty {
+  display: none;
+}
+
+/* --- The save-failure notice --------------------------------------------------------------- */
+
+#notice {
+  position: fixed;
+  bottom: calc(16px + var(--status-height, 0px));
+  left: 50%;
+  translate: -50% 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 8px 8px 8px 16px;
+  font: 14px/1.4 var(--sans);
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--caution);
+  border-left-width: var(--bar-stripe);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px var(--chrome-shadow);
+  --bar-kind: var(--caution);
+  --bar-icon: var(--icon-error);
+}
+
+#notice[hidden] {
+  display: none;
+}
+
+/* --- Print: the document alone, as document.css lays it out. ------------------------------- */
+
+@media print {
+  /* !important: chrome.js sets the body's padding on the element. */
+  body,
+  :root.outline-open body {
+    padding: 0 !important;
+  }
+
+  #document {
+    zoom: 1;
+  }
+
+  ::highlight(legible-find),
+  ::highlight(legible-find-current) {
+    background-color: transparent;
+    color: inherit;
+  }
+}

@@ -1,0 +1,62 @@
+[workspace]
+resolver = "3"
+members = ["crates/legible-core", "crates/legible-win", "crates/legible"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+authors = ["Darren Marshall"]
+repository = "https://github.com/Suremise/legible"
+publish = false
+
+[workspace.dependencies]
+legible-core = { path = "crates/legible-core" }
+legible-win = { path = "crates/legible-win" }
+# The Markdown parser (docs/ARCHITECTURE.md, The parser): GitHub-flavoured Markdown, BSD-2-Clause.
+# No default features: no command line, no syntect highlighting (highlight.js does that).
+comrak = { version = "0.59.0", default-features = false }
+# Unicode case folding, as comrak matches footnote labels with it (the version comrak uses), MIT.
+caseless = "0.2.2"
+# The HTML sanitiser: everything the document's Markdown and raw HTML become passes through it.
+ammonia = "4.2.4"
+# The clipboard HTML builder reads the view's HTML with its tokenizer: the version ammonia uses.
+html5ever = "0.40.1"
+fluent-bundle = "0.16.0"
+unic-langid = "0.9.6"
+# Fluent's syntax, as fluent-bundle parses it: a count's message is resolved for each plural form
+# from it (legible_core::i18n::plurals).
+fluent-syntax = "0.12.0"
+# The web assets and the vendored JavaScript, compiled into the exe (legible_core::assets).
+include_dir = "0.7.4"
+# Front matter: TOML (+++) and YAML (---), shown as the document's properties. preserve_order
+# keeps the keys in the document's order.
+toml = { version = "1.1.8", features = ["preserve_order"] }
+yaml-rust2 = "0.13.0"
+# The window (docs/ARCHITECTURE.md, The window): WebView2 through wry, in a tao window.
+wry = { version = "0.57.1", default-features = false, features = ["os-webview"] }
+tao = { version = "0.37.2", default-features = false, features = ["rwh_06"] }
+# The menu bar (docs/ARCHITECTURE.md, The menu bar): native Win32 menus, MIT OR Apache-2.0. No
+# default features: they are Linux's (GTK, libxdo).
+muda = { version = "0.20.0", default-features = false }
+# Win32, at the version wry and tao use.
+windows = "0.62.2"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["fmt", "std"] }
+tempfile = "3.27.0"
+
+# Dev and test builds: line tables only for the workspace's crates, so panics and test
+# failures still show file and line, and no debug info for the dependencies. Cargo never removes
+# old test exes, so this keeps target\debug small (docs/TESTING.md, Disk space). Release is
+# unchanged.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }

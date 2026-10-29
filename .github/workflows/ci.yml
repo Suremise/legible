@@ -1,0 +1,62 @@
+name: CI
+
+# Only by hand, from the Actions tab. A version tag's release (release.yml) runs the checks and
+# tests before it builds.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows:
+    name: Windows (JS verify, fmt, clippy, test, deny, release build)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      # rust-toolchain.toml picks the pinned toolchain; rustup installs it on first use.
+      - name: Show toolchain
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+      # The vendored bundles are the pinned files, and LICENSES.md audited each of them.
+      # Offline: it never downloads or builds.
+      - name: Verify the pinned JavaScript
+        shell: pwsh
+        run: ./scripts/fetch-js.ps1 -VerifyOnly
+      - name: Format
+        run: cargo fmt --all --check
+      # Checks clean-build.ps1 in a throwaway workspace: it never touches dist, ui-shots or a junction.
+      # In a child pwsh, so its exit code is the step's: the script's own last child run is one it
+      # expects to fail, which leaves LASTEXITCODE at 1 in the step's session.
+      - name: Clean-build script
+        shell: pwsh
+        run: pwsh -NoProfile -File ./scripts/test-clean-build.ps1
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest@0.9.149
+      - name: Test
+        run: cargo nextest run --workspace --profile ci
+      # nextest doesn't run doc tests.
+      - name: Doc tests
+        run: cargo test --workspace --doc
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+      - name: Licences, advisories, sources
+        run: cargo deny check
+      - name: Release build
+        run: cargo build --workspace --release
+
+  core-platform-free:
+    name: Linux (legible-core is platform-free)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: Swatinem/rust-cache@v2
+      - name: Test legible-core
+        run: cargo test -p legible-core

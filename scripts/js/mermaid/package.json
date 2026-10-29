@@ -1,0 +1,60 @@
+{
+  "name": "legible-mermaid-bundle",
+  "private": true,
+  "description": "Build-only: Mermaid without the ELK layout, bundled into third_party/js/mermaid.min.js by scripts/build-js.ps1 -Bundle mermaid. Its dependencies are held at the versions Mermaid's own 12.2.0 bundle has.",
+  "license": "MIT",
+  "legible": {
+    "stubs": {
+      "elkjs": "./elk-stub.js"
+    },
+    "unbundled": {
+      "roughjs": "bin/rough.js"
+    },
+    "notBundled": {
+      "elkjs": "stubbed out: EPL-2.0 (elk-stub.js)",
+      "@types/d3": "TypeScript types only",
+      "@chevrotain/types": "TypeScript types only",
+      "@iconify/types": "TypeScript types only",
+      "@antfu/install-pkg": "@iconify/utils' Node.js icon loaders, tree-shaken out",
+      "@antfu/utils": "@iconify/utils' Node.js icon loaders, tree-shaken out",
+      "debug": "@iconify/utils' Node.js icon loaders, tree-shaken out",
+      "globals": "@iconify/utils' Node.js icon loaders, tree-shaken out",
+      "kolorist": "@iconify/utils' Node.js icon loaders, tree-shaken out",
+      "local-pkg": "@iconify/utils' Node.js icon loaders, tree-shaken out",
+      "mlly": "@iconify/utils' Node.js icon loaders, tree-shaken out",
+      "delaunator": "d3-delaunay's Voronoi code, which Mermaid doesn't use: tree-shaken out",
+      "commander": "the command lines of d3-dsv and KaTeX only",
+      "iconv-lite": "d3-dsv's command lines only",
+      "rw": "d3-dsv's command lines only"
+    }
+  },
+  "overrides": {
+    "@braintree/sanitize-url": "7.1.2",
+    "@iconify/utils": "3.0.2",
+    "@mermaid-js/parser": "2.0.1",
+    "@upsetjs/venn.js": "2.0.0",
+    "chevrotain": "13.2.0",
+    "cytoscape": "3.34.0",
+    "cytoscape-cose-bilkent": "4.1.0",
+    "cytoscape-fcose": "2.2.0",
+    "d3": "7.9.0",
+    "d3-sankey": "0.12.3",
+    "dagre-d3-es": "7.0.14",
+    "dayjs": "1.11.21",
+    "dompurify": "3.4.12",
+    "es-toolkit": "1.45.1",
+    "katex": "0.18.11",
+    "khroma": "2.1.0",
+    "marked": "16.3.0",
+    "roughjs": "4.6.6",
+    "stylis": "4.3.6",
+    "ts-dedent": "2.2.0",
+    "uuid": "14.0.0"
+  },
+  "dependencies": {
+    "mermaid": "12.2.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

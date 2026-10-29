@@ -1,0 +1,24 @@
+{
+  "name": "legible-codemirror-bundle",
+  "private": true,
+  "description": "Build-only: the pinned CodeMirror 6 packages, bundled into third_party/js/codemirror.min.js by scripts/build-js.ps1 -Bundle codemirror.",
+  "license": "MIT",
+  "dependencies": {
+    "@codemirror/commands": "6.11.1",
+    "@codemirror/lang-markdown": "6.5.2",
+    "@codemirror/language": "6.13.1",
+    "@codemirror/search": "6.7.2",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15",
+    "@lezer/highlight": "1.2.5"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  },
+  "legible": {
+    "globalName": "CM",
+    "notBundled": {
+      "@codemirror/lint": "declared by @codemirror/lang-javascript, which never imports it"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+# The native check of pictures from the internet (docs/ARCHITECTURE.md): Legible's page, its
+# request filter and its consent, in a real WebView2, against HTTPS and HTTP servers on
+# 127.0.0.1. A workspace of its own, so its test-only TLS (rustls, rcgen) never reaches
+# Legible's build or its Cargo.lock.
+#
+#   cargo run --manifest-path crates/legible-win/checks/remote-images/Cargo.toml
+
+[package]
+name = "remote-images-check"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[workspace]
+
+[dependencies]
+legible-core = { path = "../../../legible-core" }
+# harness: its window is quiet (legible_win::quiet), never taking the user's focus.
+legible-win = { path = "../..", features = ["checks", "harness"] }
+wry = { version = "0.57.1", default-features = false, features = ["os-webview"] }
+tao = { version = "0.37.2", default-features = false, features = ["rwh_06"] }
+webview2-com = "0.39.1"
+windows = { version = "0.62.2", features = ["Win32_Foundation"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rcgen = { version = "0.13", default-features = false, features = ["ring", "pem", "crypto"] }

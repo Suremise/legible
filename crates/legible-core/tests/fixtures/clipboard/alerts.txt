@@ -1,0 +1,25 @@
+Note
+
+Useful information.
+
+Tip
+
+Helpful advice.
+
+Important
+
+Key information.
+
+Warning
+
+Needs attention, with bold.
+
+Caution
+
+Risky.
+
+A custom <title>
+
+With its own title.
+
+> An ordinary quote.

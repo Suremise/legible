@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Legible's MSI (WiX v5): per user, no admin, to %LOCALAPPDATA%\Programs\Legible.
+
+  Built by scripts/package.ps1:
+    wix build installer/legible.wxs -arch x64 -d Version=<x.y.z> -d Stage=<folder>
+      -d DowngradeMessage=<text> -d ShortcutDescription=<text> -d FileType=<text>
+      -d AppDescription=<text> -o <msi>
+  where <folder> holds legible.exe, LICENSE.txt and THIRD-PARTY-NOTICES.txt.
+
+  It uses no WiX extension and no WixUI: their dialogs, bitmaps and custom-action DLLs are MS-RL,
+  and would be embedded in the MSI. Windows shows its own progress window.
+
+  Its own text comes from locales/en/window.ftl (installer-*): package.ps1 passes it in and
+  checks the built MSI carries it.
+
+  File associations, per user: Legible offers itself for .md, .markdown and .mdown (a ProgID
+  under each extension's OpenWithProgids, Applications\legible.exe, and its capabilities under
+  RegisteredApplications, which Default apps lists it by). It never takes over the default:
+  Windows keeps that the user's choice, and Legible offers to open Default apps on its first run.
+  These are the values crates/legible-win/src/associations.rs registers for a portable copy, and
+  its test keeps them the same. Uninstalling removes exactly these values: another app's under
+  the same extensions stay.
+
+  An interactive install opens Legible (LaunchLegible below); a silent one (msiexec /i ... /qn)
+  starts nothing. Uninstalling leaves the settings, recent files and logs in
+  %APPDATA%\Legible.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+      Name="Legible"
+      Manufacturer="Darren Marshall"
+      Version="$(var.Version)"
+      UpgradeCode="6DBF6BFE-B5AC-4484-BF9B-3A496E87D881"
+      Scope="perUser"
+      Compressed="yes"
+      InstallerVersion="500">
+
+    <!-- Every build has a new ProductCode, often with the same Version: an equal version is an
+         upgrade too, or a rebuilt MSI installs beside the old one (two entries in Apps & features,
+         and an equal-version exe the installer won't replace). The old installs are removed first
+         (afterInstallInitialize), so nothing of theirs is left behind. WiX warns ICE61 about
+         same-version upgrades: that's this choice, not a mistake. -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes" Schedule="afterInstallInitialize"
+                  DowngradeErrorMessage="$(var.DowngradeMessage)" />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="LegibleIcon" SourceFile="$(sys.SOURCEFILEDIR)..\assets\icon\legible.ico" />
+    <Property Id="ARPPRODUCTICON" Value="LegibleIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/Suremise/legible" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="Legible" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <!-- Per-user components keep their key path in HKCU, as Windows Installer wants. -->
+    <ComponentGroup Id="Files" Directory="INSTALLFOLDER">
+      <Component Id="LegibleExe" Guid="29EA8075-BDBD-4C2B-8131-88A2E4D34428">
+        <File Id="LegibleExe" Source="$(var.Stage)\legible.exe" />
+        <RegistryValue Root="HKCU" Key="Software\Legible\Installer" Name="LegibleExe" Type="integer" Value="1" KeyPath="yes" />
+        <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
+        <RemoveFolder Id="RemoveProgramsFolder" Directory="ProgramsFolder" On="uninstall" />
+      </Component>
+      <Component Id="Licence" Guid="29574545-2048-4964-A891-1047AA8A8669">
+        <File Id="Licence" Source="$(var.Stage)\LICENSE.txt" />
+        <RegistryValue Root="HKCU" Key="Software\Legible\Installer" Name="Licence" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+      <Component Id="Notices" Guid="B3AB898B-CDAE-4A28-9A0E-0E5B62624D14">
+        <File Id="Notices" Source="$(var.Stage)\THIRD-PARTY-NOTICES.txt" />
+        <RegistryValue Root="HKCU" Key="Software\Legible\Installer" Name="Notices" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+      <!-- The file associations (associations.rs has the same values). -->
+      <Component Id="Associations" Guid="052065FB-FB4C-4545-A5E7-684E803BBFA3">
+        <RegistryValue Root="HKCU" Key="Software\Legible\Installer" Name="Associations" Type="integer" Value="1" KeyPath="yes" />
+
+        <RegistryValue Root="HKCU" Key="Software\Classes\Legible.Markdown" Type="string" Value="$(var.FileType)" />
+        <RegistryValue Root="HKCU" Key="Software\Classes\Legible.Markdown\DefaultIcon" Type="string" Value="&quot;[INSTALLFOLDER]legible.exe&quot;,-2" />
+        <RegistryValue Root="HKCU" Key="Software\Classes\Legible.Markdown\shell\open\command" Type="string" Value="&quot;[INSTALLFOLDER]legible.exe&quot; &quot;%1&quot;" />
+
+        <RegistryValue Root="HKCU" Key="Software\Classes\.md\OpenWithProgids" Name="Legible.Markdown" Type="string" Value="" />
+        <RegistryValue Root="HKCU" Key="Software\Classes\.markdown\OpenWithProgids" Name="Legible.Markdown" Type="string" Value="" />
+        <RegistryValue Root="HKCU" Key="Software\Classes\.mdown\OpenWithProgids" Name="Legible.Markdown" Type="string" Value="" />
+
+        <RegistryValue Root="HKCU" Key="Software\Classes\Applications\legible.exe" Name="FriendlyAppName" Type="string" Value="Legible" />
+        <RegistryValue Root="HKCU" Key="Software\Classes\Applications\legible.exe\DefaultIcon" Type="string" Value="&quot;[INSTALLFOLDER]legible.exe&quot;,-2" />
+        <RegistryValue Root="HKCU" Key="Software\Classes\Applications\legible.exe\shell\open\command" Type="string" Value="&quot;[INSTALLFOLDER]legible.exe&quot; &quot;%1&quot;" />
+        <RegistryValue Root="HKCU" Key="Software\Classes\Applications\legible.exe\SupportedTypes" Name=".md" Type="string" Value="" />
+        <RegistryValue Root="HKCU" Key="Software\Classes\Applications\legible.exe\SupportedTypes" Name=".markdown" Type="string" Value="" />
+        <RegistryValue Root="HKCU" Key="Software\Classes\Applications\legible.exe\SupportedTypes" Name=".mdown" Type="string" Value="" />
+
+        <RegistryValue Root="HKCU" Key="Software\Legible\Capabilities" Name="ApplicationName" Type="string" Value="Legible" />
+        <RegistryValue Root="HKCU" Key="Software\Legible\Capabilities" Name="ApplicationDescription" Type="string" Value="$(var.AppDescription)" />
+        <RegistryValue Root="HKCU" Key="Software\Legible\Capabilities\FileAssociations" Name=".md" Type="string" Value="Legible.Markdown" />
+        <RegistryValue Root="HKCU" Key="Software\Legible\Capabilities\FileAssociations" Name=".markdown" Type="string" Value="Legible.Markdown" />
+        <RegistryValue Root="HKCU" Key="Software\Legible\Capabilities\FileAssociations" Name=".mdown" Type="string" Value="Legible.Markdown" />
+        <RegistryValue Root="HKCU" Key="Software\RegisteredApplications" Name="Legible" Type="string" Value="Software\Legible\Capabilities" />
+      </Component>
+    </ComponentGroup>
+
+    <ComponentGroup Id="Shortcuts" Directory="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut" Guid="*">
+        <Shortcut Id="StartMenuShortcut" Name="Legible" Description="$(var.ShortcutDescription)"
+                  Target="[INSTALLFOLDER]legible.exe" WorkingDirectory="INSTALLFOLDER" Icon="LegibleIcon" />
+        <RegistryValue Root="HKCU" Key="Software\Legible\Installer" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="Main" Title="Legible" Level="1">
+      <ComponentGroupRef Id="Files" />
+      <ComponentGroupRef Id="Shortcuts" />
+    </Feature>
+
+    <!-- After an interactive install or upgrade, Legible opens, so the user sees it worked (and
+         its offer to become the default for Markdown files). A silent or basic-UI one
+         (/qn, /qb: UILevel 2 or 3) starts nothing. -->
+    <CustomAction Id="LaunchLegible" FileRef="LegibleExe" ExeCommand=""
+                  Execute="immediate" Return="asyncNoWait" />
+
+    <InstallExecuteSequence>
+      <Custom Action="LaunchLegible" After="InstallFinalize" Condition="UILevel &gt; 3 AND NOT (REMOVE~=&quot;ALL&quot;)" />
+    </InstallExecuteSequence>
+  </Package>
+</Wix>

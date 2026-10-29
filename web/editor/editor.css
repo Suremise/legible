@@ -1,0 +1,199 @@
+/* The page in Split and Edit (web/editor/editor.js): the editor's pane, the divider and the
+   document beside them. The editor's own look is inside its shadow root (codemirror.css), so
+   nothing here reaches into it.
+
+   editor.js sets the classes mode-split and mode-edit on <html> (View has neither) and
+   --split (the editor's share of the window, a number of percent) through the CSSOM. chrome.js
+   sets the document's top and bottom on it, under the bars (Layout in chrome.js). */
+
+#editor,
+.editor-divider {
+  display: none;
+}
+
+/* The page itself doesn't scroll in Split and Edit: each pane scrolls on its own. */
+:root:is(.mode-split, .mode-edit),
+:root:is(.mode-split, .mode-edit) body {
+  overflow: hidden;
+}
+
+:root:is(.mode-split, .mode-edit) #outline {
+  display: none;
+}
+
+:root:is(.mode-split, .mode-edit) body {
+  padding-left: 0;
+}
+
+:root:is(.mode-split, .mode-edit) #editor {
+  display: block;
+  position: fixed;
+  top: var(--chrome-top, 40px);
+  bottom: var(--status-height, 0px);
+  left: 0;
+  right: 0;
+  /* Its height is what top and bottom leave (codemirror.css's 100% would run it past the
+     window's bottom, its last lines out of reach). */
+  height: auto;
+  background: var(--bg);
+}
+
+:root.mode-edit #document {
+  display: none;
+}
+
+:root.mode-split #editor {
+  right: auto;
+  width: calc(var(--split, 50) * 1vw);
+}
+
+/* The document on the right, scrolling on its own, still in its reading column. */
+:root.mode-split #document {
+  position: fixed;
+  top: 40px;
+  bottom: 0;
+  left: calc(var(--split, 50) * 1vw);
+  right: 0;
+  max-width: none;
+  margin: 0;
+  overflow: auto;
+  padding-inline: max(32px, calc((100vw * (100 - var(--split, 50)) / 100 - var(--measure)) / 2));
+}
+
+:root.mode-split .editor-divider {
+  display: block;
+  position: fixed;
+  top: var(--chrome-top, 40px);
+  bottom: var(--status-height, 0px);
+  left: calc(var(--split, 50) * 1vw - 1px);
+  width: 10px;
+  z-index: 1;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+/* The divider: a thin line at the left of a 10 px grab area, which lies over the document's
+   margin and never over the editor's scrollbar, just left of the line (nor moves either pane).
+   Hovered, focused from the keyboard or dragged, the line takes the accent and a grip shows at
+   its middle. */
+.editor-divider::before,
+.editor-divider::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.editor-divider::before {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: var(--rule);
+}
+
+.editor-divider::after {
+  top: 50%;
+  left: -2px;
+  width: 6px;
+  height: 32px;
+  margin-top: -16px;
+  border-radius: 3px;
+  background: var(--accent);
+  opacity: 0;
+}
+
+.editor-divider:focus-visible {
+  outline: none;
+}
+
+.editor-divider:is(:hover, :focus-visible, .dragging)::before {
+  width: 2px;
+  background: var(--accent);
+}
+
+.editor-divider:is(:hover, :focus-visible, .dragging)::after {
+  opacity: 1;
+}
+
+/* The unsaved dot beside View, Split and Edit (chrome.js shows it while editor.js says so). */
+.unsaved {
+  align-self: center;
+  width: 8px;
+  height: 8px;
+  margin-inline: 6px 2px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.unsaved[hidden] {
+  display: none;
+}
+
+/* The conflict bar (editor.js): the file changed on disk, went, or was saved by another program
+   at the same moment. Under the toolbar and the chrome's other bars, like them: chrome.js counts
+   it in --chrome-top, so the panes and the document start below it, and sets --conflict-top. */
+#conflict-bar {
+  position: fixed;
+  top: var(--conflict-top, 40px);
+  left: 0;
+  right: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  min-height: 44px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 14px;
+  font: 14px/1.4 var(--sans);
+  color: var(--text);
+  background: var(--warning-bg);
+  border-bottom: 1px solid var(--rule);
+  border-left: var(--bar-stripe, 5px) solid var(--warning);
+}
+
+/* Its icon leads, as the chrome's bars' do (web/chrome/window.css). */
+#conflict-bar::before {
+  content: "";
+  flex: none;
+  width: 16px;
+  height: 16px;
+  background: var(--warning);
+  mask: var(--icon-warning) center / contain no-repeat;
+}
+
+#conflict-bar[hidden] {
+  display: none;
+}
+
+/* Never part of a selection of the page, as the chrome's bars aren't (web/chrome/window.css). */
+#conflict-bar,
+.editor-divider {
+  user-select: none;
+}
+
+.conflict-text {
+  flex: 1;
+}
+
+/* Print is the document, whatever the mode. */
+@media print {
+  :root:is(.mode-split, .mode-edit),
+  :root:is(.mode-split, .mode-edit) body {
+    overflow: visible;
+  }
+
+  #editor,
+  .editor-divider,
+  .unsaved,
+  #conflict-bar {
+    display: none !important;
+  }
+
+  :root:is(.mode-split, .mode-edit) #document {
+    display: block;
+    position: static;
+    overflow: visible;
+    padding: 0;
+  }
+}

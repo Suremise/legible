@@ -1,0 +1,6 @@
+# The pinned JavaScript bundles are checked byte for byte against their SHA-256
+# (third_party/js/VERSIONS): never convert their line endings.
+third_party/js/*.js -text
+
+# The golden fixtures are compared byte for byte: keep their line endings as written.
+crates/legible-core/tests/fixtures/** -text

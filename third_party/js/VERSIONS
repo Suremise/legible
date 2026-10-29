@@ -1,0 +1,45 @@
+# The pinned JavaScript bundles Legible embeds; legible_core::assets serves each as js/<file>.
+#
+# scripts/fetch-js.ps1 reads this file. With -VerifyOnly (CI) it checks each file's SHA-256 and
+# that LICENSES.md audited it. Without, a missing or changed file is fetched again from its npm
+# tarball (checked against the registry's sha512 integrity) or rebuilt by its build script.
+# scripts/audit-js-licences.mjs reads it too, and writes LICENSES.md and NOTICES.txt.
+#
+# Each [file] section has:
+#   package, version: the npm package it comes from, or that it's built from;
+#   tarball, integrity, path: a prebuilt file's npm tarball, the registry's integrity for it,
+#     and the file's path in it; or build: the bundle scripts/build-js.ps1 -Bundle builds;
+#   sha256: the file as committed;
+#   inventory (one or more): where the licence audit finds the packages bundled in the file:
+#     "self" (only the package itself), "list:<file in this repository>" (name@version lines),
+#     or "comments:<package@version>:<path in its tarball>" (the bundler's "// node_modules/..."
+#     comments in a package's own build, a file or a folder of chunks: the packages it inlines).
+
+[highlight.min.js]
+package=@highlightjs/cdn-assets
+version=11.12.0
+tarball=https://registry.npmjs.org/@highlightjs/cdn-assets/-/cdn-assets-11.12.0.tgz
+integrity=sha512-KvOKXODaiFmId9xaq3xc5xCL66wVLUuOngDbO9B/kewbFTqdGbn2nJxNhN3H5R1cgDTVj6R8vH0zgiNDEGjpDw==
+path=package/highlight.min.js
+sha256=8ab71eb09c51f501e5e25157d9cff100e46cc29bcbfc744d0b746d451fca7f53
+inventory=self
+
+[codemirror.min.js]
+package=@codemirror/view
+version=6.43.15
+build=codemirror
+sha256=3ffa634d8847f78fc2dea0ebcfbcb8801e535bd4bc1a8f140faf2a5faa5eec78
+inventory=list:scripts/js/codemirror/bundled-packages.txt
+
+[mermaid.min.js]
+package=mermaid
+version=12.2.0
+build=mermaid
+sha256=bf2f82b16562e65d9ec39ecaf2bbda73beb3dba16b564a500edacdc74f01cfbb
+inventory=list:scripts/js/mermaid/bundled-packages.txt
+# Mermaid's and its parser's own builds inline some packages (js-yaml, fastdom, langium, the
+# vscode-* libraries): their module comments name them.
+inventory=comments:mermaid@12.2.0:package/dist/mermaid.core.mjs
+inventory=comments:mermaid@12.2.0:package/dist/chunks/mermaid.core
+inventory=comments:@mermaid-js/parser@2.0.1:package/dist/mermaid-parser.core.mjs
+inventory=comments:@mermaid-js/parser@2.0.1:package/dist/chunks/mermaid-parser.core

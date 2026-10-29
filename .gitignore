@@ -1,0 +1,27 @@
+# OS and editor files
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.DS_Store
+*.swp
+*~
+
+# Logs
+*.log
+logs/
+
+# Build output
+target/
+
+# Build-only npm installs (scripts/build-js.ps1 works in a temp copy; this catches a
+# manual `npm install` there)
+node_modules/
+
+# Local reference files (worked examples), never committed
+/reference/
+
+# Local builds, never committed
+/dist/
+
+# Personal, machine-specific notes (AGENTS.md has the shared ones)
+CLAUDE.local.md

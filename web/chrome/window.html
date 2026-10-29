@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="{{lang}}"{{view}}>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="{{csp}}">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}}</title>
+<link rel="stylesheet" href="/doc/document.css">
+<link rel="stylesheet" href="/chrome/window.css">
+<link rel="stylesheet" href="/editor/editor.css">
+<script type="application/json" id="legible-doc-strings">{{strings}}</script>
+<script src="/doc/document.js" defer></script>
+<script type="application/json" id="legible-chrome-strings">{{chrome-strings}}</script>
+<script type="application/json" id="legible-settings">{{settings}}</script>
+<script src="/chrome/chrome.js" defer></script>
+<script type="application/json" id="legible-editor">{{editor}}</script>
+<script src="/editor/editor.js" defer></script>
+</head>
+<body>
+<main id="document" data-generation="{{generation}}">{{document}}</main>
+</body>
+</html>

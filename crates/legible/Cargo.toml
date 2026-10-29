@@ -1,0 +1,34 @@
+[package]
+name = "legible"
+description = "Legible: a Markdown reader for Windows."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "legible"
+path = "src/main.rs"
+
+[dependencies]
+legible-core.workspace = true
+legible-win.workspace = true
+tracing.workspace = true
+
+# The icon-dpi example: a window of its own, and the icon messages it reads back. Both already
+# in the build through legible-win, at these versions. legible-win's test-only `harness` feature
+# makes its window quiet (legible_win::quiet); only dev builds have it, never the exe's.
+[target.'cfg(windows)'.dev-dependencies]
+legible-win = { workspace = true, features = ["harness"] }
+tao.workspace = true
+windows = { workspace = true, features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging"] }
+
+# Build-only: compiles the manifest, the icon and the version info into the exe (build.rs).
+# Uses the Windows SDK's rc.exe. MIT.
+[build-dependencies]
+embed-resource = "3.0.12"
+
+[lints]
+workspace = true

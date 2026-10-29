@@ -1,0 +1,11 @@
+[Chart]
+
+[Spaces]
+
+[Outside]
+
+[Remote]
+
+[Inline data]
+
+[Raw HTML image] [Raw remote]
