@@ -63,9 +63,11 @@ from this PC's apps for .md files** takes it out again.
 The toolbar at the top has, from the left: **Open**, with an arrow that lists the recent files;
 **View, Split and Edit**, with the dot for unsaved changes; **Save** and **Save as**; **Undo** and
 **Redo**, in Split and Edit; **Outline**; **Find**; the **zoom**; **Reading width and style**;
-**Print**; **Copy**; and **⋯** (More), with Save as PDF, Open in editor, Show in folder, Settings
-and About. Every button says
-what it does, and its shortcut, when you hover over it. The menu bar above it (File, Edit, View,
+**Print**; **Save as PDF**; **Copy**; and **⋯** (More), with Open in editor, Show in folder,
+Settings and About. Every button says what it does, and its shortcut, when you hover over it.
+In a narrow window, groups of buttons move into the **⋯** menu, where they do the same: first
+Print, Save as PDF and Copy, then the zoom and the reading width and style, and in the narrowest
+Split, Outline and Find. Widen the window and they come back. The menu bar above it (File, Edit, View,
 Tools and Help) has the same commands, and works from the keyboard with Alt.
 
 ### What a document shows
@@ -189,7 +191,8 @@ is printed after it.
 
 ### Save as PDF
 
-**File > Save as PDF…** (or the **⋯** menu) saves the same pages as a PDF: on A4, or on Letter if
+**Save as PDF** on the toolbar, beside Print (or **File > Save as PDF…**), saves the same pages
+as a PDF: on A4, or on Letter if
 your Windows region measures in inches. It suggests the document's name, in its folder (or in
 Documents). When it's done, **Open** opens the PDF and **Show in folder** shows it. An existing
 PDF is only replaced once the new one is complete.

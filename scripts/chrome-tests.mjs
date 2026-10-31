@@ -1374,10 +1374,22 @@ await test("printing puts the title at the top of each page and its number at th
   );
 });
 
-await test("Save as PDF asks the window; a saved PDF offers Open and Show in folder", async () => {
+await test("Save as PDF: a button beside Print that asks the window, not in ⋯; a saved PDF offers Open and Show in folder", async () => {
   await open("short");
+  const pdf = `document.querySelector('#toolbar [data-command="save-pdf"]')`;
+  const order = await evaluate(`[...document.querySelectorAll("#toolbar button.tool")].map((b) => b.getAttribute("aria-label"))`);
+  const i = order.indexOf("Print");
+  expect(order.slice(i, i + 3).join() === "Print,Save as PDF,Copy", `the strip: ${order}`);
+  expect((await evaluate(`${pdf}.title`)) === "Save as PDF", `tooltip: ${await evaluate(`${pdf}.title`)}`);
+  // Its own icon, unlike Print's and Save's.
+  const icons = await evaluate(`["save-pdf", "save"].map((c) => document.querySelector('#toolbar [data-command="' + c + '"] svg').innerHTML)
+    .concat(document.querySelector('#toolbar [aria-label="Print"] svg').innerHTML)`);
+  expect(new Set(icons).size === 3, "Save as PDF's icon is Print's or Save's");
   await evaluate(`document.querySelector('[aria-label="More"]').click()`);
-  await evaluate(`[...document.querySelectorAll('.menu-item')].find((m) => m.textContent === 'Save as PDF').click()`);
+  const more = await evaluate(`[...document.querySelectorAll('.menu:not([hidden]) .menu-item')].map((m) => m.textContent)`);
+  expect(!more.includes("Save as PDF"), `⋯ lists Save as PDF: ${more}`);
+  await key("Escape", { keyCode: 27 });
+  await evaluate(`${pdf}.click()`);
   expect((await sent()).at(-1) === "save-pdf", `sent ${JSON.stringify((await sent()).at(-1))}`);
   await evaluate(`LegibleChrome.pdfSaved({ name: "Plan.pdf" })`);
   const toast = `document.getElementById('toast')`;
@@ -1390,11 +1402,10 @@ await test("Save as PDF asks the window; a saved PDF offers Open and Show in fol
     expect((await sent()).at(-1) === message, `${label} sent ${JSON.stringify((await sent()).at(-1))}`);
   }
   await open("empty");
-  await evaluate(`document.querySelector('[aria-label="More"]').click()`);
-  expect(
-    (await evaluate(`[...document.querySelectorAll('.menu-item')].find((m) => m.textContent === 'Save as PDF').getAttribute('aria-disabled')`)) === "true",
-    "Save as PDF without a document",
-  );
+  expect((await evaluate(`${pdf}.getAttribute('aria-disabled')`)) === "true", "Save as PDF without a document");
+  await evaluate("window.sent.length = 0");
+  await evaluate(`${pdf}.click()`);
+  expect(!(await sent()).includes("save-pdf"), "Save as PDF asked without a document");
 });
 
 await test("Open in editor and Show in folder ask the window, and do nothing without a document", async () => {
@@ -2159,6 +2170,112 @@ await test("Save and Save as on the strip: beside the unsaved dot, Save usable o
   await open("empty");
   [disabled, tip, asDisabled] = await state();
   expect(disabled === "true" && tip === "Save: nothing to save" && asDisabled === "true", `empty: ${await state()}`);
+});
+
+await test("a narrow window: the strip's groups move into ⋯ in turn, never overlapping or past the edge, and come back", async () => {
+  const at = async (width) => {
+    await cdp("Emulation.setDeviceMetricsOverride", { width, height: 600, deviceScaleFactor: 1, mobile: false });
+    await until(`the strip laid out at ${width} px`, () => evaluate(`innerWidth === ${width}`));
+    await evaluate("new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))");
+    return evaluate(`(() => {
+      const tools = [...document.querySelectorAll('#toolbar button.tool')].filter((t) => !t.hidden && t.offsetWidth);
+      const rects = tools.map((t) => t.getBoundingClientRect());
+      let overlaps = 0;
+      for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
+        if (rects[i].left < rects[j].right - 1 && rects[j].left < rects[i].right - 1) overlaps++;
+      }
+      const outside = rects.filter((r) => r.right > innerWidth + 0.5 || r.left < -0.5).length;
+      return { overlaps, outside, shown: tools.map((t) => t.getAttribute('aria-label')) };
+    })()`);
+  };
+  const hasAll = (shown, names) => names.every((n) => shown.includes(n));
+  const hasNone = (shown, names) => names.every((n) => !shown.includes(n));
+  const OUT = ["Print", "Save as PDF", "Copy"];
+  const LOOK = ["Zoom out", "Reset zoom", "Zoom in", "Reading width and style"];
+  const FIND = ["Outline", "Find"];
+  const ALWAYS = ["Open", "Recent files", "View", "Split", "Edit", "Save", "Save as", "More"];
+  try {
+    await open("short");
+    for (const mode of ["view", "split"]) {
+      if (mode === "split") await toMode("split");
+      for (const width of [1100, 700, 600, 560, 520, 480, 440, 400]) {
+        const { overlaps, outside, shown } = await at(width);
+        expect(overlaps === 0 && outside === 0, `${mode} at ${width}: ${overlaps} overlapping, ${outside} outside: ${shown}`);
+        expect(hasAll(shown, ALWAYS), `${mode} at ${width}: ${shown}`);
+        if (mode === "split") expect(hasAll(shown, ["Undo", "Redo"]), `${mode} at ${width}: ${shown}`);
+        // Whole groups, in order: the later ones go only once the earlier have.
+        const gone = [OUT, LOOK, FIND].map((g) => hasNone(shown, g));
+        const kept = [OUT, LOOK, FIND].map((g) => hasAll(shown, g));
+        expect(gone.every((g, i) => g || kept[i]), `${mode} at ${width}: a group split up: ${shown}`);
+        expect(gone.every((g, i) => !g || i === 0 || gone[i - 1]), `${mode} at ${width}: out of order: ${shown}`);
+        if (width === 1100) expect(!gone.some(Boolean), `${mode} at 1100: ${shown}`);
+      }
+    }
+    // The strip's arrow keys pass by the groups that have gone: at 480 in View (the zoom and
+    // reading moved into ⋯), and at 400 in Split (Outline and Find too).
+    const label = () => evaluate("document.activeElement.getAttribute('aria-label')");
+    const focusOn = (name) => evaluate(`document.querySelector('#toolbar [aria-label=${JSON.stringify(name)}]').focus()`);
+    const arrow = async (from, keyName, keyCode) => {
+      await focusOn(from);
+      await key(keyName, { keyCode });
+      return label();
+    };
+    await toMode("view");
+    const view480 = await at(480);
+    expect(hasNone(view480.shown, [...OUT, ...LOOK]) && hasAll(view480.shown, FIND), `View at 480: ${view480.shown}`);
+    expect((await arrow("Find", "ArrowRight", 39)) === "More", `Right from Find: ${await label()}`);
+    expect((await arrow("More", "ArrowLeft", 37)) === "Find", `Left from More: ${await label()}`);
+    await toMode("split");
+    const split400 = await at(400);
+    expect(hasNone(split400.shown, [...OUT, ...LOOK, ...FIND]), `Split at 400: ${split400.shown}`);
+    expect((await arrow("Redo", "ArrowRight", 39)) === "More", `Right from Redo: ${await label()}`);
+    expect((await arrow("More", "ArrowLeft", 37)) === "Redo", `Left from More: ${await label()}`);
+    expect((await arrow("More", "ArrowRight", 39)) === "Open", `Right from More: ${await label()}`);
+    // Split at 400: everything but the left side and ⋯ has gone into ⋯, in strip order, each
+    // doing what its button does.
+    const { shown } = await at(400);
+    expect(hasNone(shown, [...OUT, ...LOOK, ...FIND]), `Split at 400: ${shown}`);
+    await evaluate(`document.querySelector('[aria-label="More"]').click()`);
+    const items = await evaluate(`[...document.querySelectorAll('.menu:not([hidden]) .menu-item')].map((m) => m.firstChild.nextSibling.textContent)`);
+    const want = ["Print", "Save as PDF", "Copy", "Zoom out", "Reset zoom", "Zoom in", "Narrow", "Comfortable", "Wide", "Sans", "Serif", "Outline", "Find", "Open in editor", "Show in folder", "Settings", "About Legible"];
+    expect(JSON.stringify(items) === JSON.stringify(want), `⋯ at 400: ${JSON.stringify(items)}`);
+    const pick = (label) =>
+      evaluate(`(() => { document.querySelector('[aria-label="More"]').getAttribute('aria-expanded') === 'true' || document.querySelector('[aria-label="More"]').click();
+        [...document.querySelectorAll('.menu:not([hidden]) .menu-item')].find((m) => m.firstChild.nextSibling.textContent === ${JSON.stringify(label)}).click(); })()`);
+    await pick("Save as PDF");
+    expect((await sent()).at(-1) === "save-pdf", `Save as PDF from ⋯ sent ${JSON.stringify((await sent()).at(-1))}`);
+    const zoom = () => evaluate("getComputedStyle(document.documentElement).getPropertyValue('--zoom').trim()");
+    await pick("Zoom in");
+    expect((await zoom()) === "1.1", `Zoom in from ⋯: ${await zoom()}`);
+    await pick("Reset zoom");
+    expect((await zoom()) === "1", `Reset zoom from ⋯: ${await zoom()}`);
+    await pick("Wide");
+    expect((await sent()).at(-1) === "setting\nwidth\nwide", `Wide from ⋯ sent ${JSON.stringify((await sent()).at(-1))}`);
+    await pick("Comfortable");
+    // The smallest window (400 by 300): ⋯ stays inside it, scrolling, and End reaches its last item.
+    await cdp("Emulation.setDeviceMetricsOverride", { width: 400, height: 300, deviceScaleFactor: 1, mobile: false });
+    await until("the window at 400 by 300", () => evaluate("innerWidth === 400 && innerHeight === 300"));
+    await evaluate(`document.querySelector('[aria-label="More"]').focus()`);
+    await key("ArrowDown", { keyCode: 40 });
+    const fits = await evaluate(`(() => { const m = document.querySelector('.menu:not([hidden])').getBoundingClientRect();
+      return m.bottom <= innerHeight && m.top >= 0; })()`);
+    expect(fits, "⋯ runs past the window's bottom");
+    expect(await evaluate(`(() => { const m = document.querySelector('.menu:not([hidden])'); return m.scrollHeight > m.clientHeight; })()`), "⋯ doesn't scroll");
+    await key("End", { keyCode: 35 });
+    const last = await evaluate(`(() => { const a = document.activeElement.getBoundingClientRect(); const m = a && document.querySelector('.menu:not([hidden])').getBoundingClientRect();
+      return [document.activeElement.textContent, a.bottom <= m.bottom + 1 && a.top >= m.top - 1]; })()`);
+    expect(last[0] === "About Legible" && last[1], `End in ⋯: ${JSON.stringify(last)}`);
+    await key("Escape", { keyCode: 27 });
+    // Wider again: the groups come back, and ⋯ is its own again.
+    const back = await at(1100);
+    expect(hasAll(back.shown, [...OUT, ...LOOK, ...FIND]), `back at 1100: ${back.shown}`);
+    await evaluate(`document.querySelector('[aria-label="More"]').click()`);
+    const own = await evaluate(`[...document.querySelectorAll('.menu:not([hidden]) .menu-item')].map((m) => m.firstChild.nextSibling.textContent)`);
+    expect(JSON.stringify(own) === JSON.stringify(["Open in editor", "Show in folder", "Settings", "About Legible"]), `⋯ at 1100: ${JSON.stringify(own)}`);
+    await key("Escape", { keyCode: 27 });
+  } finally {
+    await cdp("Emulation.setDeviceMetricsOverride", { width: 1100, height: 800, deviceScaleFactor: 1, mobile: false });
+  }
 });
 
 await test("Undo and Redo on the strip: in Split and Edit only, greyed out with nothing to undo or redo, the focus kept in the text", async () => {

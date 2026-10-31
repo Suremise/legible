@@ -532,9 +532,21 @@ since the process was created; "Performance", below, has the full record):
     what's saved, and the editor renders it for its own preview, which then shows "Updated just
     now". So the document has one writer at a time, and its source lines stay right for scroll
     sync. Until the editor opens, the window keeps the file's newest text for it.
-- **The chrome** (`web/chrome/chrome.js`, `window.css`): a fixed 40 px toolbar (Open; View,
-  Split and Edit; Outline, Find, Zoom, Reading width and style, Print, Copy, and a More menu with
-  Settings and About), a find bar under it, and the outline panel on the left. The document
+- **The chrome** (`web/chrome/chrome.js`, `window.css`): a fixed 40 px toolbar (Open with its
+  recent files; View, Split and Edit; Save and Save as; Undo and Redo in Split and Edit;
+  Outline, Find, Zoom, Reading width and style, Print, Save as PDF, Copy, and a More menu with
+  Open in editor, Show in folder, Settings and About), a find bar under it, and the outline
+  panel on the left. **A narrow window** (the window goes down to 400 px): the strip measures
+  what each side needs (`fitToolbar`, on a `ResizeObserver` of the strip, a mode change and a
+  zoom change, whose label's width changes) and hides whole groups in order (`TIERS`) until
+  both sides fit with the strip's gap between them: Print, Save as PDF and Copy first, then the
+  zoom and Reading width and style, then Outline and Find (only the narrowest Split needs that).
+  Open, the modes, Save, Save as, Undo, Redo and the More menu always stay. A hidden group's
+  commands are at the top of the More menu, in the strip's order and doing what its buttons do,
+  their shortcuts as hints (the reading width and style as their checked items under a heading),
+  so nothing ever overlaps or leaves the window; the strip's arrow keys pass by every button
+  not shown (hidden itself, or in a hidden group: `closest("[hidden]")`), and a menu of a group
+  that goes closes with it. The document
   stays a direct child of `<body>` and the page itself scrolls, so the print stylesheet's rule
   (`body > :not(#document)` hidden) hides all the chrome, and `window.css` resets the zoom and
   the chrome's padding in print. Everything is built with `createElement` and `textContent`,
@@ -779,7 +791,8 @@ since the process was created; "Performance", below, has the full record):
       boxes from the chrome (a constructed stylesheet; the CSP is as strict as ever): the page's
       title at the top of each page, Fluent's "Page { $page } of { $pages }" at the bottom (the
       translation's order kept, its text CSS-escaped).
-    - **Save as PDF** (the More menu): one job at a time per window, each numbered. Its folder
+    - **Save as PDF** (the toolbar's button beside Print, and File): one job at a time per
+      window, each numbered. Its folder
       is found off the UI thread (the document's, if a file can be made there, else Documents);
       the Save dialog suggests `<name>.pdf`; WebView2's `PrintToPdf` (A4, or Letter where the
       locale measures in inches; backgrounds on; WebView2's own header and footer off, as the
