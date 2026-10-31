@@ -14,9 +14,8 @@
 
 Notes, reports, meeting minutes and documentation are more and more often written in Markdown,
 the plain-text format behind GitHub, Teams and many AI tools. Opened in Notepad, a Markdown file
-is a wall of hashes and asterisks. Opened in Legible, it reads like a document: clear type at a
-comfortable width, proper headings, tables, lists, code and diagrams, in light or dark as Windows
-is.
+is a wall of hashes and asterisks. Opened in Legible, it reads like a document: clear type,
+proper headings, tables, lists, code and diagrams, in light or dark as Windows is.
 
 Double-click a `.md` file and it opens in its own window, at once. Copy it into an email, print
 it or save it as a PDF, and it still looks right. When it needs a change, edit it in the same
