@@ -570,6 +570,9 @@ struct DocWindow {
     close_after_take: bool,
     /// Save as is under way: its file is being written, the page frozen till it's over.
     saving_as: bool,
+    /// A close asked for while Save as was under way: it goes on once that's over, so the
+    /// frozen page is never asked about, nor unfrozen, before Save as has moved the window.
+    close_after_save_as: bool,
     /// Whether the window has said the file mixes line endings.
     told_mixed: bool,
     /// What its listener for the session's end knows, and when it opened (the oldest asks
@@ -1032,6 +1035,7 @@ impl Shell {
             || doc.replacing.is_some()
             || doc.saves.closing()
             || doc.close_after_take
+            || doc.saving_as
             || doc.race.as_ref().is_some_and(|r| r.taking)
         {
             return tracing::info!("an open asked of a window that's closing or replacing");
@@ -1427,6 +1431,7 @@ impl Shell {
                 races: 0,
                 close_after_take: false,
                 saving_as: false,
+                close_after_save_as: false,
                 told_mixed: false,
                 ending,
                 opened: self.opened,
@@ -2834,6 +2839,7 @@ impl Shell {
         doc.race = None;
         doc.close_after_take = false;
         doc.saving_as = false;
+        doc.close_after_save_as = false;
         doc.told_mixed = false;
         // Offered again next time Legible starts: the reader hasn't chosen.
         doc.offered.clear();

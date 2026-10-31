@@ -734,16 +734,30 @@ impl Shell {
     /// Save as's file is written, and the window shows it in place of its own document: what
     /// the reader had there is in the new file, so nothing is asked, and the old file stays as
     /// it was on disk. Or it couldn't be written, and the window stays as it was, taking edits
-    /// again.
+    /// again. A close asked for meanwhile goes on now.
     pub(super) fn saved_as(
         &mut self,
         id: WindowId,
         path: PathBuf,
         written: Result<Stamp, recovery::NotCopied>,
     ) {
-        if !self.windows.get(&id).is_some_and(|d| d.saving_as) {
+        let Some(doc) = self.windows.get_mut(&id).filter(|d| d.saving_as) else {
             return;
+        };
+        let close = std::mem::take(&mut doc.close_after_save_as);
+        self.after_save_as(id, path, written);
+        if close {
+            self.ask_close(id);
         }
+    }
+
+    /// Save as's write is over: the window moves to the new file, or stays as it was.
+    fn after_save_as(
+        &mut self,
+        id: WindowId,
+        path: PathBuf,
+        written: Result<Stamp, recovery::NotCopied>,
+    ) {
         let name = recovery::name_of(&path);
         let error = match written {
             Ok(_) => return self.switch_to(id, &path),
@@ -822,8 +836,8 @@ impl Shell {
 
     // --- Closing -------------------------------------------------------------------------------
 
-    /// Every way a window closes: with unsaved edits, it asks first. While Take theirs is
-    /// being written, the close waits for it. A close wins over a document waiting to replace
+    /// Every way a window closes: with unsaved edits, it asks first. While Take theirs or Save
+    /// as is being written, the close waits for it. A close wins over a document waiting to replace
     /// the window's ([`Shell::open_here`]): the window closes, as the reader asked.
     pub(super) fn ask_close(&mut self, id: WindowId) {
         let Some(doc) = self.windows.get_mut(&id) else {
@@ -832,6 +846,12 @@ impl Shell {
         doc.replacing = None;
         if doc.race.as_ref().is_some_and(|r| r.taking) {
             doc.close_after_take = true;
+            return;
+        }
+        // The page is frozen for Save as's text, which is about to be the window's new file:
+        // asked now, Cancel would unfreeze it, and an edit then would be lost with the old page.
+        if doc.saving_as {
+            doc.close_after_save_as = true;
             return;
         }
         let dirty = doc.reload.is_dirty() || doc.nav_guard.dirty();

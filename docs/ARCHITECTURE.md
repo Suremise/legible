@@ -1083,7 +1083,9 @@ it was read, and nothing that might be the only copy of someone's text is ever r
   file in another encoding stays byte for byte, and so stays read-only) is written only over
   exactly that: a file that appears or changes after the approval is left alone, and said.
   The editor is frozen (`freeze()`) before its text is asked for, so nothing typed afterwards
-  is left behind. Written, **the window shows the new file in place of its own**, through
+  is left behind; while the write is under way (`DocWindow::saving_as`), a close waits for it,
+  as for Take theirs, asking nothing and leaving the page frozen (`close_after_save_as`, which
+  Exit counts as closing), and Open into the window is refused. Written, **the window shows the new file in place of its own**, through
   Open's replace (`Shell::replace`, The window, above) with no close question, since what was
   unsaved is in the new file: the old file stays as it was on disk, and the title, the status
   bar's path, recent files and the Jump List, live reload, the document's folder, the

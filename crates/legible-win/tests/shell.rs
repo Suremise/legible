@@ -103,6 +103,10 @@ const CASES: &[(&str, Case)] = &[
         save_as_makes_a_read_only_file_editable,
     ),
     (
+        "Open and a close during Save as: Open refused, the close waits (nothing asked, the page frozen, no late edit lost), then it closes",
+        close_waits_for_save_as,
+    ),
+    (
         "the status bar: the file's path, encoding and line endings (as a save leaves them), and Copy path copies the file's own path",
         status_bar_and_copy_path,
     ),
@@ -835,6 +839,61 @@ fn save_as_makes_a_read_only_file_editable(d: &Driver, docs: &Path) -> Result<()
         return Err("the new file can't be edited".into());
     }
     close_clean(d, w)
+}
+
+fn close_waits_for_save_as(d: &Driver, docs: &Path) -> Result<()> {
+    let file = document(docs, "closing-save-as", b"# Original\n")?;
+    let new = file.with_file_name("new.md");
+    let other = document(docs, "opened-during-save-as", b"# Other\n")?;
+    let w = open_editing(d, &file)?;
+    edited(d, w, "Saved. ")?;
+    // Save as's write, held once it's staged till the test lets it go on.
+    let (staged, is_staged) = mpsc::channel::<()>();
+    let (release, released) = mpsc::channel::<()>();
+    d.at(Write::SaveAs, Moment::Staged, move || {
+        let _ = staged.send(());
+        let _ = released.recv_timeout(BOUND);
+    });
+    d.save_as_to(&new);
+    press(d, w, "S", true)?;
+    is_staged
+        .recv_timeout(BOUND)
+        .map_err(|_| "Save as's write never started".to_owned())?;
+    d.until(w, "the page frozen for Save as", "LegibleEditor.isFrozen()")?;
+    // Open meanwhile: refused, the window staying on its file till Save as moves it.
+    let asked = d.questions();
+    d.open_here(w, &other)?;
+    if d.questions() != asked || d.file_of(w)? != Some(canonical(&file)?) {
+        return Err("Open went ahead during Save as".into());
+    }
+    if d.window_of(&other)?.is_some() {
+        return Err("the file opened during Save as".into());
+    }
+    // Closed meanwhile: it waits, asking nothing (Cancel would have unfrozen the page).
+    d.close(w)?;
+    if d.questions() != asked {
+        return Err("the close asked while Save as was being written".into());
+    }
+    d.eval(
+        w,
+        "LegibleEditor.view().dispatch({ changes: { from: 0, insert: 'Late. ' } })",
+    )?;
+    d.until(
+        w,
+        "the page still frozen, the late edit kept out",
+        &format!("LegibleEditor.isFrozen() && !{TEXT}.startsWith('Late. ')"),
+    )?;
+    if !d.is_open(w)? {
+        return Err("the window closed before Save as was over".into());
+    }
+    // Written: the window moves to the new file, and the close goes on, asking nothing.
+    let _ = release.send(());
+    file_is(d, &new, b"Saved. # Original\n")?;
+    d.until_true("the window to close", || Ok(!d.is_open(w)?))?;
+    if d.questions() != asked {
+        return Err("the close asked once Save as was over".into());
+    }
+    file_is(d, &file, b"# Original\n")
 }
 
 /// `file`'s read-only attribute, set till this is dropped (a folder with a read-only file in it
