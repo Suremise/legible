@@ -137,7 +137,7 @@ impl Shell {
             SaveAnswer::DontSave => return forget(&kept.copy),
             SaveAnswer::Cancel => return,
         }
-        let Some(chosen) = self.copy_dialog(0, &kept.document) else {
+        let Some(chosen) = self.save_as_dialog(0, &kept.document) else {
             return;
         };
         let bytes = match &format {
@@ -175,14 +175,14 @@ impl Shell {
 /// Why unsaved edits kept weren't written as a new file, for the reader.
 fn not_copied(not: recovery::NotCopied) -> String {
     let error = match not {
-        recovery::NotCopied::Same => return tr("chrome-save-copy-same"),
+        recovery::NotCopied::Same => return tr("chrome-save-as-same"),
         recovery::NotCopied::Write(error) => error,
     };
     tracing::warn!(?error, "couldn't write unsaved edits kept");
     match error {
         WriteError::Failed(error) | WriteError::Partial { error, .. } => reason::of(&error),
         // Something is there now that wasn't when it was chosen.
-        WriteError::Conflict(_) | WriteError::Raced { .. } => tr("chrome-save-copy-changed"),
+        WriteError::Conflict(_) | WriteError::Raced { .. } => tr("chrome-save-as-changed"),
     }
 }
 

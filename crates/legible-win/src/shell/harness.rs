@@ -94,8 +94,8 @@ struct State {
     /// been asked.
     answers: VecDeque<SaveAnswer>,
     questions: usize,
-    /// The files Save a copy's dialog chooses, in turn (cancelled once they're used up).
-    copy_to: VecDeque<PathBuf>,
+    /// The files Save as's dialog chooses, in turn (cancelled once they're used up).
+    save_as_to: VecDeque<PathBuf>,
     /// What message boxes said.
     messages: Vec<String>,
     /// The text of each copy written to the clipboard.
@@ -130,8 +130,8 @@ impl StandIn for Host {
         state.answers.pop_front().unwrap_or(SaveAnswer::Cancel)
     }
 
-    fn copy_to(&self) -> Option<PathBuf> {
-        lock(&self.0).copy_to.pop_front()
+    fn save_as_to(&self) -> Option<PathBuf> {
+        lock(&self.0).save_as_to.pop_front()
     }
 
     fn message(&self, text: &str) -> bool {
@@ -642,9 +642,9 @@ impl Driver {
         lock(&self.state).questions
     }
 
-    /// The file Save a copy's dialog chooses next.
-    pub fn copy_to(&self, file: &Path) {
-        lock(&self.state).copy_to.push_back(file.to_owned());
+    /// The file Save as's dialog chooses next.
+    pub fn save_as_to(&self, file: &Path) {
+        lock(&self.state).save_as_to.push_back(file.to_owned());
     }
 
     /// The text of each copy written to the clipboard (the harness's own), oldest first.

@@ -49,7 +49,7 @@ impl Mode {
 pub enum Command {
     Open,
     Save,
-    SaveCopy,
+    SaveAs,
     SavePdf,
     Print,
     Close,
@@ -79,7 +79,7 @@ pub enum Command {
 pub const COMMANDS: [Command; 32] = [
     Command::Open,
     Command::Save,
-    Command::SaveCopy,
+    Command::SaveAs,
     Command::SavePdf,
     Command::Print,
     Command::Close,
@@ -190,7 +190,7 @@ impl Command {
         match self {
             Command::Open => "menu-open",
             Command::Save => "menu-save",
-            Command::SaveCopy => "menu-save-copy",
+            Command::SaveAs => "menu-save-as",
             Command::SavePdf => "menu-save-pdf",
             Command::Print => "menu-print",
             Command::Close => "menu-close",
@@ -229,7 +229,7 @@ impl Command {
         match self {
             Command::Open => ctrl('O'),
             Command::Save => ctrl('S'),
-            Command::SaveCopy => ctrl_shift('S'),
+            Command::SaveAs => ctrl_shift('S'),
             Command::Print => ctrl('P'),
             Command::Close => ctrl('W'),
             Command::Undo => ctrl('Z'),
@@ -270,7 +270,7 @@ impl Command {
         match self {
             Command::Open => Route::Window("open"),
             Command::Save => Route::Window("save"),
-            Command::SaveCopy => Route::Window("save-copy"),
+            Command::SaveAs => Route::Window("save-as"),
             Command::SavePdf => Route::Window("save-pdf"),
             Command::Close => Route::Window("close"),
             Command::Exit => Route::Exit,
@@ -361,7 +361,7 @@ impl State {
             | Command::About => true,
             // Nothing unsaved, or a save under way: nothing (more) to save. In any mode, as
             // Ctrl+S: edits made in Split or Edit are still unsaved back in View. A file that
-            // can't be saved where it is has only Save a copy.
+            // can't be saved where it is has only Save as.
             Command::Save => document && self.editable && self.dirty && !self.saving,
             Command::Undo | Command::Redo | Command::Cut | Command::Paste | Command::Replace => {
                 editing
@@ -370,7 +370,7 @@ impl State {
             Command::Mode(_) => document && self.editable,
             // The editor's text takes the outline's side in Split and Edit.
             Command::Outline => document && self.mode == Mode::View,
-            Command::SaveCopy
+            Command::SaveAs
             | Command::SavePdf
             | Command::Print
             | Command::Copy
@@ -405,7 +405,7 @@ pub const BAR: [(&str, &[Entry]); 5] = [
             Entry::Recent,
             Entry::Separator,
             Entry::Item(Command::Save),
-            Entry::Item(Command::SaveCopy),
+            Entry::Item(Command::SaveAs),
             Entry::Item(Command::SavePdf),
             Entry::Separator,
             Entry::Item(Command::Print),
@@ -792,7 +792,7 @@ mod tests {
         let expected = [
             (Command::Open, Route::Window("open")),
             (Command::Save, Route::Window("save")),
-            (Command::SaveCopy, Route::Window("save-copy")),
+            (Command::SaveAs, Route::Window("save-as")),
             (Command::SavePdf, Route::Window("save-pdf")),
             (Command::Print, Route::Page("print")),
             (Command::Close, Route::Window("close")),
@@ -867,7 +867,7 @@ mod tests {
         let expected = [
             (Command::Open, "Ctrl+O"),
             (Command::Save, "Ctrl+S"),
-            (Command::SaveCopy, "Ctrl+Shift+S"),
+            (Command::SaveAs, "Ctrl+Shift+S"),
             (Command::Print, "Ctrl+P"),
             (Command::Close, "Ctrl+W"),
             (Command::Undo, "Ctrl+Z"),
@@ -1022,7 +1022,7 @@ mod tests {
             Command::Outline,
             Command::Mode(Mode::Split),
             Command::Mode(Mode::Edit),
-            Command::SaveCopy,
+            Command::SaveAs,
             Command::Print,
         ] {
             assert!(state.enabled(command), "{command:?}");
@@ -1090,14 +1090,14 @@ mod tests {
             ..dirty
         };
         assert!(back_in_view.enabled(Command::Save));
-        // Save a copy is there throughout.
+        // Save as is there throughout.
         for state in [split, dirty, saving, back_in_view] {
-            assert!(state.enabled(Command::SaveCopy));
+            assert!(state.enabled(Command::SaveAs));
         }
     }
 
     #[test]
-    fn a_file_that_cant_be_edited_offers_view_and_save_a_copy() {
+    fn a_file_that_cant_be_edited_offers_view_and_save_as() {
         let state = State {
             editable: false,
             ..reading()
@@ -1107,7 +1107,7 @@ mod tests {
         assert!(!state.enabled(Command::Mode(Mode::Edit)));
         assert!(!state.enabled(Command::Save));
         assert!(!state.enabled(Command::Replace));
-        assert!(state.enabled(Command::SaveCopy));
+        assert!(state.enabled(Command::SaveAs));
         assert!(state.enabled(Command::CopyDocument));
     }
 

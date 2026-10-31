@@ -60,8 +60,8 @@ from this PC's apps for .md files** takes it out again.
 
 ## Reading
 
-The toolbar at the top has, from the left: **Open**; **View, Split and Edit**; **Outline**;
-**Find**; the **zoom**; **Reading width and style**; **Print**; **Copy**; and **⋯** (More), with
+The toolbar at the top has, from the left: **Open**; **View, Split and Edit**, with the dot for
+unsaved changes; **Save** and **Save as**; **Outline**; **Find**; the **zoom**; **Reading width and style**; **Print**; **Copy**; and **⋯** (More), with
 Save as PDF, Open in editor, Show in folder, Recent files, Settings and About. Every button says
 what it does, and its shortcut, when you hover over it. The menu bar above it (File, Edit, View,
 Tools and Help) has the same commands, and works from the keyboard with Alt.
@@ -226,10 +226,12 @@ suggestions.
 
 ## Saving, and when the file changes
 
-**Save** (Ctrl+S, or **File > Save**) saves the file in its own format: its encoding (UTF-8 or
-UTF-16) and its line endings, so an unchanged file is saved exactly as it was. While there are
-unsaved changes, a dot shows beside View, Split and Edit and in the window's title ("● notes.md –
-Legible"). Undoing back to the saved text clears it.
+**Save** (the toolbar's Save, Ctrl+S, or **File > Save**) saves the file in its own format: its
+encoding (UTF-8 or UTF-16) and its line endings, so an unchanged file is saved exactly as it was.
+While there are unsaved changes, a dot shows beside View, Split and Edit and in the window's title
+("● notes.md – Legible"). Undoing back to the saved text clears it. The toolbar's Save is greyed
+out while there's nothing to save, and on a file that can't be saved where it is; its tooltip
+says which.
 
 **Closing** a window with unsaved changes asks: **Save**, **Don't save** or **Cancel**. Don't save
 is the only way changes are dropped.
@@ -241,24 +243,30 @@ changes to notes.md?" **Restore** puts them back into the text, unsaved, in Spli
 them out again); **Discard** drops them. If the file has gone, or can't be changed where it is,
 Legible asks before opening anything whether to save them as a new file.
 
-### Save a copy
+### Save as
 
-**File > Save a copy…** (Ctrl+Shift+S) saves the text as a new file (in Documents, named
-"notes (copy).md" to start with), and opens the copy in a window of its own. It never replaces
-the open file. Use it for a file you can't change where it is.
+**Save as** (the toolbar's Save as, Ctrl+Shift+S, or **File > Save as…**) saves the text as a new
+file, and the window then shows that file instead, as in Word or Notepad: its name is in the
+title, it's at the top of recent files, and your next Save goes to it. The file you had open stays
+as it was when you last saved it. The Save dialog starts in the file's own folder, with its name;
+for an email attachment, a download or a file in a temporary folder, it starts in Documents.
+Choosing the open file itself just saves it. Use Save as for a file you can't change where it
+is.
 
 ### Files you can't change where they are
 
-Some files open for reading only. Split and Edit are greyed out, and their tooltips say how to
-edit a copy:
+Some files open for reading only. Split, Edit and Save are greyed out, and their tooltips say how
+to edit it:
 
 - **An email attachment, a download or a file in a temporary folder:** opened from there, it's a
   temporary copy, and your changes would be lost.
 - **A read-only file.**
 - **A file that isn't saved as UTF-8 or UTF-16:** Legible shows it but doesn't edit it, so it
-  never changes its characters. **Save a copy…** keeps it exactly as it is.
+  never changes its characters. **Save as** keeps it exactly as it is, in a new file, which
+  opens for reading only too.
 
-Save a copy where you keep your documents, and edit that.
+**Save as** the file where you keep your documents (Ctrl+S offers it too), and the window then
+shows your new file, ready to edit.
 
 ### "notes.md changed while you were editing it"
 
@@ -318,7 +326,7 @@ into one; Esc closes Settings.
 |---|---|
 | Ctrl+O | Open |
 | Ctrl+S | Save |
-| Ctrl+Shift+S | Save a copy |
+| Ctrl+Shift+S | Save as |
 | Ctrl+P | Print |
 | Ctrl+W | Close the window |
 | Ctrl+E | View, Split, Edit |
@@ -401,8 +409,9 @@ this PC** first; the MSI does it when it installs.
 
 Split and Edit are greyed out, and their tooltips say why: the file is an email attachment, a
 download or in a temporary folder, is read-only, or isn't UTF-8 or UTF-16. The status bar (View >
-Status bar) says which, for the first three. Use **File > Save a copy…** to save it where you keep
-your documents, and edit the copy ([above](#files-you-cant-change-where-they-are)).
+Status bar) says which, for the first three. Use **Save as** to save it where you keep your
+documents, and the window then shows the new file, ready to edit
+([above](#files-you-cant-change-where-they-are)).
 
 ### "This file changed on disk" (or "changed while you were editing it")
 

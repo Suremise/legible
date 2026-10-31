@@ -377,11 +377,11 @@ since the process was created; "Performance", below, has the full record):
   between is its first report; the file joins the recent files once it's read; a window closed
   before then just closes; and a file that can't be read (another program holding it) closes
   its window and says why. Till then its menu bar offers what needs no document (Open, Close,
-  Exit, the settings), as the empty window's does, and Save a copy and Save as PDF do nothing.
+  Exit, the settings), as the empty window's does, and Save as and Save as PDF do nothing.
 - **Open replaces the window's document; a launch opens a window** (`Shell::open_here`, and
   `Shell::open` for the rest). Open (Ctrl+O), Open recent and a drop show the file in the
-  window they came from; a launch (a double-click, the Jump List, a later launch's hand-off), a
-  link and a copy just saved open a window of their own. A file open in another window brings
+  window they came from, and so does Save as's new file (Saving, below); a launch (a
+  double-click, the Jump List, a later launch's hand-off) and a link open a window of their own. A file open in another window brings
   that one forward instead, and the window asked stays as it is. The replace goes through the
   window's own closing (`saving::Session`), so unsaved changes ask the close question, by the
   same path: a close that would close the window (`Shell::closed`) replaces its document
@@ -484,7 +484,7 @@ since the process was created; "Performance", below, has the full record):
   (`StandIn`) for what a test mustn't touch or can't answer: no app identity and no Jump List
   (both are the user's, by the app's ID), no single-instance pipe, quiet windows (`quiet`:
   off every monitor and never activated, so a test run leaves the user's focus alone;
-  docs/TESTING.md, Rules every test keeps), a clipboard of its own, the close question's and Save a copy's answers given, message
+  docs/TESTING.md, Rules every test keeps), a clipboard of its own, the close question's and Save as's answers given, message
   boxes recorded. A driver on a thread of its own runs script in each window's own page (never
   input), reads the window's state, holds a page's message back, and acts in the moments of a
   write (`Write` and `Moment`: another app writing the file between a save's check and its replace,
@@ -852,8 +852,8 @@ since the process was created; "Performance", below, has the full record):
   access keys and screen readers work as in any Windows app. Its strings are Fluent's
   (`menu-*`); within each menu every item has its own access key, which a test checks.
   - **One code path:** every item does what its toolbar button or shortcut does
-    (`menu::Command::route`). Open, Save, Save a copy…, Save as PDF… and Close are the page's
-    own messages to the window (`open`, `save`, `save-copy`, `save-pdf`, `close`), which the
+    (`menu::Command::route`). Open, Save, Save as…, Save as PDF… and Close are the page's
+    own messages to the window (`open`, `save`, `save-as`, `save-pdf`, `close`), which the
     shell takes as if the page had sent them; a file in Open recent (the ⋯ menu's list: its
     name, then its folder, shortened in the middle past 40 characters) is `open-recent` with
     the list's token. Print, Find, Replace, Copy document,
@@ -875,7 +875,7 @@ since the process was created; "Performance", below, has the full record):
     or Edit; View's Status bar is ticked as the setting is; Save needs unsaved edits (in any
     mode, as Ctrl+S: edits made in Split are still
     unsaved back in View) and no save under way (nor a close's own); a file that
-    can't be edited where it is offers View and Save a copy…; the empty window offers Open,
+    can't be edited where it is offers View and Save as…; the empty window offers Open,
     Close, Exit, the width, the theme, Settings and About. The mode, Outline (only in View, as
     its button), the reading width and the theme are ticked as they are: the page says the
     mode (`mode`) and when the Outline button's pressed state changes (`outline
@@ -975,15 +975,22 @@ since the process was created; "Performance", below, has the full record):
     or the browser's cache, `Content.Outlook`, `INetCache` or `Temporary Internet Files`, where
     an email's attachment or a download opens from: `editor::file_is_editable`), or in an
     encoding Legible doesn't save (below), shows Split and Edit unusable, their tooltips saying
-    how to edit a copy, and Ctrl+E does nothing. **The switch is only ever the modes:** Save a
-    copy… is File's (`save-copy`, Ctrl+Shift+S), and Ctrl+S offers the copy too.
+    how to edit it (Save as, somewhere it can be), and Ctrl+E does nothing. The toolbar's Save
+    is greyed out there too, its tooltip saying so; Save as (`save-as`, Ctrl+Shift+S) is how to
+    edit it, and Ctrl+S offers it too.
+  - **Save and Save as on the toolbar,** beside the unsaved dot: Save (`save`, as Ctrl+S) is
+    usable while the editor says there's something unsaved (`legible-dirty`), and greyed out
+    otherwise (`aria-disabled`), its tooltip saying why: nothing to save, or a file that can't
+    be saved where it is. Save as (`save-as`, as Ctrl+Shift+S) is there whenever there's a
+    document. The menu's Save follows the window's own state (`menu::State`), which also knows
+    a save under way.
   - **Generations:** the editor's previews are renders of the window's generation, and carry it
     with what their pictures may do (`preview(version, html, {generation, remote})`); the
     preview tells the chrome (`LegibleChrome.adopt`), so the bar's answers are for the render
     shown, and the approved pictures show in it. A change from disk with the editor open goes
     through the same pictures, bar and CSP steps as one shown in View.
   - **Messages** (`editor::Message`): `source`, `render`, `dirty`, `contents`, `save`,
-    `save-copy`, `compare`, `raced` and `clean` from the page (and the bar's `keep` and
+    `save-as`, `compare`, `raced` and `clean` from the page (and the bar's `keep` and
     `reload`, which chrome.js's live reload answers use too); `load({text, editable})`,
     `preview(version, html, info)`, `fromDisk(text)`, `markSaved(version)`,
     `saveAbandoned(version)`, `compare(kind, id, html, info)`, `freeze()`, `closeCheck()` and
@@ -1065,13 +1072,26 @@ it was read, and nothing that might be the only copy of someone's text is ever r
   newest question is asked, and the window acts only on an answer for the newest; Keep my
   changes for a change a save found saves again. Use the file and Compare never navigate the
   page.
-- **Save a copy…** (Ctrl+Shift+S): the Save dialog, in Documents, named "<name> (copy)"; never
-  the open file itself, by any name (its path or its identity, checked again just before the
-  write). The destination is approved as it is when the dialog closes (absent, or a file with
-  its stamp: `recovery::approve`), and the editor's text (or the file's bytes, if it isn't
-  editable) is written only over exactly that: a file that appears or changes after the
-  approval is left alone, and said. The copy opens in a window of its own, and the window's
-  own text stays as saved or unsaved as it was.
+- **Save as…** (Ctrl+Shift+S, the toolbar's Save as, or Ctrl+S on a file that can't be saved
+  where it is; `Shell::save_as`): the Save dialog, named as the file is, in its own folder, or
+  in Documents when that's the temp folder or a cache (`editor::saves_beside`). Choosing the
+  open file itself is Save, where it can be saved, and said where it can't; a file open in
+  another window is refused, and that window comes forward. The new file is never the open
+  file, by any name (its path or its identity, checked again just before the write). The
+  destination is approved as it is when the dialog closes (absent, or a file with its stamp:
+  `recovery::approve`), and the editor's text (or the file's bytes, if it isn't editable: a
+  file in another encoding stays byte for byte, and so stays read-only) is written only over
+  exactly that: a file that appears or changes after the approval is left alone, and said.
+  The editor is frozen (`freeze()`) before its text is asked for, so nothing typed afterwards
+  is left behind. Written, **the window shows the new file in place of its own**, through
+  Open's replace (`Shell::replace`, The window, above) with no close question, since what was
+  unsaved is in the new file: the old file stays as it was on disk, and the title, the status
+  bar's path, recent files and the Jump List, live reload, the document's folder, the
+  pictures and whether it can be edited are the new file's. The mode stays, and so does the
+  place in View; the editor's undo history starts again with the new page. A raced write (the
+  destination written by another program in the moment of the replace) is kept beside it, as
+  a save's is, and the window still moves. Anything else leaves the window as it was, taking
+  edits again, its text unsaved, and says why.
 - **Closing** (every way a window closes goes through `Shell::ask_close`): with nothing unsaved
   and nothing being written it closes; with a save under way it waits for it, then checks again;
   with unsaved edits it asks (a task dialog: Save, Don't save, Cancel). Save freezes the editor
@@ -1111,8 +1131,9 @@ it was read, and nothing that might be the only copy of someone's text is ever r
   keeps it for next time. Copies of one file from more than one run are offered in turn, oldest
   first. A copy its file already holds goes
   unasked. One whose file has gone, or can't be edited where it is, is asked about before any
-  window opens: Save as… (Save a copy's dialog, never over the file, the text in the file's
-  own format if it's known) or Discard, and Cancel keeps it.
+  window opens: Save as… (Save as's dialog, never over the file, the text in the file's
+  own format if it's known; the new file opens in a window of its own) or Discard, and
+  Cancel keeps it.
 - **Screenshots** (`ui-shots` set `saving`): the bar in Split, its confirmation, Compare, a raced
   save and a file that went, in light and dark.
 - **Tests:** `legible-core`'s `save` tests (byte-exact round trips in every format, a crash
@@ -1126,8 +1147,8 @@ it was read, and nothing that might be the only copy of someone's text is ever r
   window (The window, above): a save then Copy or a pictures answer straight away, a reload that
   waited for a save, Use the other version (completed, raced by a third writer, and written
   over before it's taken up), Keep my changes over a change a save found, a close during a save,
-  Save a copy over
-  a destination that changed, Windows ending the session (stopped and asked, nothing unsaved,
+  Save as (the window moving to the new file: its title, recent files, live reload, and a
+  read-only file's new one editable) and Save as over a destination that changed, Windows ending the session (stopped and asked, nothing unsaved,
   cancelled, two windows in turn, a critical end, an end before the preview caught up, every
   window kept at the first question, an earlier run's unchosen copy outliving a later end) and
   the copies offered back (Restore, Discard, offered again, a file that has gone, one already

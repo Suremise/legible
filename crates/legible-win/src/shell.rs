@@ -144,8 +144,8 @@ enum UserEvent {
     ShutdownOverdue(u64),
     /// The window's save of its editor's version `u64` is over.
     Written(WindowId, u64, Result<Stamp, WriteError>),
-    /// A window's copy is written to the file, or couldn't be.
-    CopyWritten(WindowId, PathBuf, Result<Stamp, recovery::NotCopied>),
+    /// Save as wrote the window's text to the file, or couldn't.
+    SavedAs(WindowId, PathBuf, Result<Stamp, recovery::NotCopied>),
     /// Their version of raced save `u64` is back in the window's file, or wasn't put back.
     RaceTaken(WindowId, u64, Result<recovery::Taken, recovery::NotTaken>),
     /// A window stopped Windows ending the session: its unsaved windows ask, in turn.
@@ -161,12 +161,12 @@ enum UserEvent {
     Harness(harness::Call),
 }
 
-/// Which of a window's writes: its saves, Take theirs, or Save a copy.
+/// Which of a window's writes: its saves, Take theirs, or Save as.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Write {
     Save,
     Take,
-    Copy,
+    SaveAs,
 }
 
 /// A write's moments, as a test acts in them: [`Hooks`]'s, and the moment it's over, before the
@@ -187,8 +187,8 @@ trait StandIn {
     /// A question's answer: the close question's, or the one for unsaved edits kept for a file
     /// that has gone.
     fn answer(&self) -> dialogs::SaveAnswer;
-    /// The file Save a copy's dialog chooses; None: cancelled.
-    fn copy_to(&self) -> Option<PathBuf>;
+    /// The file Save as's dialog chooses; None: cancelled.
+    fn save_as_to(&self) -> Option<PathBuf>;
     /// A message box, never shown: its answer to a question.
     fn message(&self, text: &str) -> bool;
     /// A copy, written to a clipboard of the harness's own, never the real one.
@@ -369,8 +369,8 @@ fn handler(
                 shell.written(id, version, written);
                 shell.exit_when_settled(flow);
             }
-            Event::UserEvent(UserEvent::CopyWritten(id, path, written)) => {
-                shell.copy_written(id, path, written, target)
+            Event::UserEvent(UserEvent::SavedAs(id, path, written)) => {
+                shell.saved_as(id, path, written);
             }
             Event::UserEvent(UserEvent::RaceTaken(id, n, taken)) => {
                 shell.race_taken(id, n, taken);
@@ -568,6 +568,8 @@ struct DocWindow {
     races: u64,
     /// A close asked for while Take theirs was written: it goes on once that's over.
     close_after_take: bool,
+    /// Save as is under way: its file is being written, the page frozen till it's over.
+    saving_as: bool,
     /// Whether the window has said the file mixes line endings.
     told_mixed: bool,
     /// What its listener for the session's end knows, and when it opened (the oldest asks
@@ -990,7 +992,7 @@ impl Shell {
 
     /// Opens `file` in a window of its own, or brings its window forward; says whether it's
     /// open now. Every launch comes here (a double-click, the Jump List, a later launch's
-    /// hand-off), and so do a link and a copy just saved; each that works adds to recent files.
+    /// hand-off), and so does a link; each that works adds to recent files.
     fn open(&mut self, file: &Path, target: &EventLoopWindowTarget<UserEvent>) -> bool {
         let Some(canonical) = self.found(file) else {
             return false;
@@ -1424,6 +1426,7 @@ impl Shell {
                 race: None,
                 races: 0,
                 close_after_take: false,
+                saving_as: false,
                 told_mixed: false,
                 ending,
                 opened: self.opened,
@@ -1951,7 +1954,7 @@ impl Shell {
                 text,
             } => self.contents(id, request, version, text),
             editor::Message::Save => self.save(id),
-            editor::Message::SaveCopy => self.save_copy(id),
+            editor::Message::SaveAs => self.save_as(id),
             editor::Message::Clean(clean) => self.clean(id, clean),
             editor::Message::Compare(n) => self.compare(id, n),
             editor::Message::Raced { answer, id: n } => self.race_answer(id, answer, n),
@@ -2830,6 +2833,7 @@ impl Shell {
         doc.writing = None;
         doc.race = None;
         doc.close_after_take = false;
+        doc.saving_as = false;
         doc.told_mixed = false;
         // Offered again next time Legible starts: the reader hasn't chosen.
         doc.offered.clear();

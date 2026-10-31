@@ -18,7 +18,7 @@
 //! **At the next start** ([`offer`]), each copy kept is offered back: its file's window opens
 //! with a bar, Restore (the text goes into the editor as unsaved changes) or Discard; closed
 //! without a choice, it's offered again next time. A file that has gone, or can't be edited
-//! where it is, offers Save a copy instead. A file that already holds the text needs nothing.
+//! where it is, offers to save it as a new file instead. A file that already holds the text needs nothing.
 
 use legible_core::unsaved::Kept;
 
@@ -91,7 +91,7 @@ pub enum Offer {
     /// The file's window opens with the bar; `changed`: the file has changed since the copy's
     /// edits were made to it.
     Bar { changed: bool },
-    /// The file has gone, or can't be edited where it is: Save a copy, or Discard.
+    /// The file has gone, or can't be edited where it is: saved as a new file, or Discard.
     Elsewhere,
 }
 

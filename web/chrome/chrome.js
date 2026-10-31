@@ -5,6 +5,8 @@
 // settings from id="legible-settings" (legible_win::page). The page talks to the window with
 // window.ipc.postMessage, one message a line or two:
 //   open                       the Open dialog
+//   save, save-as              the toolbar's Save and Save as (as Ctrl+S and Ctrl+Shift+S,
+//                              web/editor/editor.js)
 //   mode\n<view|split|edit>    the mode (web/editor/editor.js changes it and says so)
 //   setting\n<key>\n<value>    a setting changed (the window checks, saves and sends it to
 //                              every window)
@@ -113,6 +115,9 @@
     reading: ["M1.5 8h13M4 5.5l-2.5 2.5l2.5 2.5M12 5.5l2.5 2.5l-2.5 2.5"],
     print: ["M4 6V1.5h8V6M4 11.5H2.5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1H12M4 9.5h8v5H4z"],
     copy: ["M5.5 5.5h8v9h-8zM10.5 5.5V1.5h-8v9h3"],
+    // Save: a disk. Save as: the disk, a pencil over its corner.
+    save: ["M2.5 1.5h9l3 3v10h-12zM5 1.5v4h6v-4M4.5 14.5v-5h7v5"],
+    "save-as": ["M7.5 14.5h-5v-13h9l3 3v2.5M5 1.5v4h6v-4M4.5 14.5v-5h4", "M9.5 15l.5-2l4-4l1.5 1.5l-4 4z"],
     more: ["M3 8h.01M8 8h.01M13 8h.01"],
     up: ["M3.5 10l4.5-4.5l4.5 4.5"],
     down: ["M3.5 6l4.5 4.5l4.5-4.5"],
@@ -325,7 +330,7 @@
 
   // View, Split and Edit (Ctrl+E goes round them), as icons named by their modes: only modes,
   // always. On a file that can't be edited where it is, Split and Edit are there but unusable,
-  // their tooltips saying how to edit a copy (File's Save a copy…, Ctrl+Shift+S).
+  // their tooltips saying how to edit it: Save as (Ctrl+Shift+S) somewhere it can be.
   const modeButtons = ["view", "split", "edit"].map((mode) => {
     const usable = editable || mode === "view";
     const node = button(s(`mode-${mode}`), {
@@ -344,7 +349,36 @@
       if (b.dataset.mode) b.setAttribute("aria-pressed", String(b.dataset.mode === event.detail));
     }
   });
-  document.addEventListener("legible-dirty", (event) => (unsaved.hidden = !event.detail));
+  document.addEventListener("legible-dirty", (event) => {
+    unsaved.hidden = !event.detail;
+    syncSave(event.detail);
+  });
+
+  // Save and Save as, beside the unsaved dot. Save is usable while there's something unsaved
+  // (in any mode, as Ctrl+S), and greyed out otherwise, its tooltip saying why: nothing to save,
+  // or a file that can't be saved where it is (Save as is how). Save as writes the text to a new
+  // file, which the window then shows instead (the window's Save dialog).
+  const noDocument = document.documentElement.classList.contains("no-document");
+  const saveButton = button(s("save"), {
+    iconName: "save",
+    attrs: { "data-command": "save" },
+    onclick: () => saveButton.getAttribute("aria-disabled") !== "true" && send("save"),
+  });
+  function syncSave(dirty) {
+    const usable = editable && dirty;
+    if (usable) saveButton.removeAttribute("aria-disabled");
+    else saveButton.setAttribute("aria-disabled", "true");
+    saveButton.title = usable
+      ? tipWithKeys(s("save"), keys("Ctrl", "S"))
+      : tipWithNote(s("save"), s(editable || noDocument ? "save-nothing" : "save-not-editable"));
+  }
+  syncSave(false);
+  const saveAsButton = button(s("save-as"), {
+    iconName: "save-as",
+    shortcut: keys("Ctrl", "Shift", "S"),
+    attrs: { "data-command": "save-as", "aria-disabled": noDocument ? "true" : undefined },
+    onclick: noDocument ? undefined : () => send("save-as"),
+  });
   // The editor's preview replaced the document: the outline follows.
   document.addEventListener("legible-document-changed", () => documentChanged());
 
@@ -380,7 +414,6 @@
     style("sans"),
     style("serif"),
   ]);
-  const noDocument = document.documentElement.classList.contains("no-document");
   // The recent files, as the window last sent them; a pick names the list by its token.
   let recent = { token: 0, items: [] };
   // Files of the same name are told apart by their folders: as many of the last ones as it
@@ -436,6 +469,8 @@
       button(s("open"), { iconName: "open", shortcut: keys("Ctrl", "O"), onclick: () => send("open") }),
       el("div", { className: "segmented", role: "group", "aria-label": s("mode") }, ...modeButtons),
       unsaved,
+      saveButton,
+      saveAsButton,
     ),
     el(
       "div",
