@@ -7,8 +7,10 @@
 //! `target/ui-shots/readme` by default. Copy them into `docs/screenshots/` once they're approved.
 //!
 //! It drives only its own window: script in its own page, and its own window's handle. Each shot
-//! is taken once the page says it's ready (the diagram drawn, and in Split the preview too),
-//! never after a fixed wait.
+//! is taken once the page says it's ready (the diagram drawn, and in Split the preview too) and
+//! has painted it, never after a fixed wait. Each picture is then checked: a spot of the toolbar
+//! and the pressed mode button must have the colours the page gives them, or the picture was of
+//! the window a step behind (WebView2 not yet composited), and it's taken again.
 
 #[cfg(windows)]
 #[allow(unsafe_code)]
@@ -26,14 +28,14 @@ mod shots {
 
     use legible_win::paths::AppPaths;
     use legible_win::shell::harness::{self, Driver, Window};
-    use windows::Win32::Foundation::{HWND, LPARAM, RECT};
+    use windows::Win32::Foundation::{HWND, LPARAM, POINT, RECT};
     use windows::Win32::Graphics::Dwm::{
         DWMWA_EXTENDED_FRAME_BOUNDS, DwmFlush, DwmGetWindowAttribute,
     };
     use windows::Win32::Graphics::Gdi::{
-        BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC, HBITMAP,
-        HPALETTE, RDW_ALLCHILDREN, RDW_FRAME, RDW_INVALIDATE, RDW_UPDATENOW, RedrawWindow,
-        ReleaseDC, SRCCOPY, SelectObject,
+        BitBlt, ClientToScreen, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject,
+        GetDC, GetPixel, HBITMAP, HDC, HPALETTE, RDW_ALLCHILDREN, RDW_FRAME, RDW_INVALIDATE,
+        RDW_UPDATENOW, RedrawWindow, ReleaseDC, SRCCOPY, SelectObject,
     };
     use windows::Win32::Graphics::GdiPlus::{
         GdipCreateBitmapFromHBITMAP, GdipDisposeImage, GdipSaveImageToFile, GdiplusShutdown,
@@ -108,7 +110,7 @@ mod shots {
                     split_mode(d, window)?;
                 }
                 let file = out.join(format!("{name}.png"));
-                capture(d, &file)?;
+                shot(d, window, &file)?;
                 written.push(file);
             }
             Ok(written)
@@ -165,6 +167,86 @@ mod shots {
         Ok(())
     }
 
+    /// Where a picture is checked (in the page's CSS pixels from its viewport's corner) and the
+    /// colour it must have there: an empty spot of the toolbar, whose colour is the theme's, and
+    /// the pressed mode button (View or Split). Each colour is the one the page gives it, its
+    /// backgrounds composited, as a canvas reads it. Answered as `ratio;x,y,r,g,b,what;...`, with
+    /// no quotes or backslashes in it.
+    const PROBES: &str = r##"(() => {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 1;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        const rgba = (colour) => {
+          ctx.clearRect(0, 0, 1, 1);
+          ctx.fillStyle = "#000";
+          ctx.fillStyle = colour;
+          ctx.fillRect(0, 0, 1, 1);
+          return [...ctx.getImageData(0, 0, 1, 1).data];
+        };
+        const behind = (el) => {
+          if (!el) return [255, 255, 255];
+          const own = rgba(getComputedStyle(el).backgroundColor);
+          if (own[3] === 255) return own.slice(0, 3);
+          const under = behind(el.parentElement);
+          const a = own[3] / 255;
+          return under.map((c, i) => Math.round(own[i] * a + c * (1 - a)));
+        };
+        const probes = [];
+        const at = (x, y, what) => {
+          const [r, g, b] = behind(document.elementFromPoint(x, y));
+          probes.push([Math.round(x), Math.round(y), r, g, b, what].join(","));
+        };
+        const bar = document.getElementById("toolbar");
+        const box = bar.getBoundingClientRect();
+        const y = box.top + box.height / 2;
+        for (let x = box.right - 3; x > box.left; x -= 2) {
+          if (document.elementFromPoint(x, y) === bar) { at(x, y, "the toolbar"); break; }
+        }
+        const pressed = document.querySelector(".segmented [aria-pressed=true]").getBoundingClientRect();
+        at(pressed.left + 4, pressed.top + pressed.height / 2, "the pressed mode button");
+        return devicePixelRatio + ";" + probes.join(";");
+      })()"##;
+
+    /// How far a pixel may be from its colour, in each channel.
+    const TOLERANCE: i32 = 8;
+
+    /// Takes the picture to `file` once the page has painted its state, and again until the
+    /// picture shows it (`PROBES`).
+    fn shot(d: &Driver, window: Window, file: &Path) -> harness::Result<()> {
+        let mut tries = 0;
+        let what = format!("a picture of the state asked for ({})", file.display());
+        d.until_true(&what, || {
+            painted(d, window)?;
+            let probes = d.eval(window, PROBES)?.ok_or("the window has gone")?;
+            // A JSON string, its text free of quotes and backslashes.
+            let probes = probes.trim_matches('"');
+            tries += 1;
+            match capture(d, file, probes)? {
+                None => {
+                    if tries > 1 {
+                        eprintln!("readme-shots: {} right at try {tries}", file.display());
+                    }
+                    Ok(true)
+                }
+                Some(wrong) => {
+                    eprintln!("readme-shots: {}: {wrong}; taken again", file.display());
+                    Ok(false)
+                }
+            }
+        })
+    }
+
+    /// Waits until the page has painted what it was last given: two frames on.
+    fn painted(d: &Driver, window: Window) -> harness::Result<()> {
+        d.eval(
+            window,
+            "window.shotFrames = 0; \
+             requestAnimationFrame(() => requestAnimationFrame(() => (window.shotFrames = 2))); \
+             true",
+        )?;
+        d.until(window, "the page painted", "window.shotFrames === 2")
+    }
+
     /// This process's visible window whose title names the sample.
     fn own_window() -> Option<HWND> {
         unsafe extern "system" fn each(hwnd: HWND, found: LPARAM) -> BOOL {
@@ -191,8 +273,9 @@ mod shots {
 
     /// Copies the window as it is on screen, frame and all, to `file` as a PNG: `PrintWindow`
     /// into a bitmap of its whole rectangle, cut to the frame DWM draws (without the invisible
-    /// resize borders).
-    fn capture(d: &Driver, file: &Path) -> harness::Result<()> {
+    /// resize borders). Unless the picture differs from `probes` (`PROBES`'s answer): then it's
+    /// not written, and the answer is where.
+    fn capture(d: &Driver, file: &Path, probes: &str) -> harness::Result<Option<String>> {
         d.until_true("the window's handle", || Ok(own_window().is_some()))?;
         let hwnd = own_window().ok_or("the window has gone")?;
         unsafe {
@@ -239,20 +322,78 @@ mod shots {
             );
             SelectObject(cut, old_cut);
             SelectObject(all, old_all);
-            let _ = DeleteDC(cut);
             let _ = DeleteDC(all);
             ReleaseDC(None, screen);
             let _ = DeleteObject(all_bits.into());
+            // The page's corner in the picture: the window's client area, which the WebView fills.
+            let mut corner = POINT::default();
+            let _ = ClientToScreen(hwnd, &mut corner);
+            let offset = (corner.x - frame.left, corner.y - frame.top);
+            let wrong = if printed.as_bool() && copied.is_ok() {
+                let old = SelectObject(cut, cut_bits.into());
+                let wrong = differs(cut, offset, probes);
+                SelectObject(cut, old);
+                wrong
+            } else {
+                Ok(None)
+            };
+            let _ = DeleteDC(cut);
             let saved = if !printed.as_bool() {
                 Err("PrintWindow failed".to_string())
             } else if let Err(e) = copied {
                 Err(e.to_string())
             } else {
-                save_png(cut_bits, file)
+                match wrong {
+                    Ok(None) => save_png(cut_bits, file).map(|()| None),
+                    other => other,
+                }
             };
             let _ = DeleteObject(cut_bits.into());
             saved
         }
+    }
+
+    /// Where the picture in `dc` (the page's corner at `offset` in it) differs from `probes`, if
+    /// it does.
+    unsafe fn differs(
+        dc: HDC,
+        offset: (i32, i32),
+        probes: &str,
+    ) -> harness::Result<Option<String>> {
+        let mut parts = probes.split(';');
+        let ratio: f64 = parts
+            .next()
+            .and_then(|r| r.parse().ok())
+            .ok_or_else(|| format!("no pixel ratio in {probes}"))?;
+        let mut checked = 0;
+        for probe in parts {
+            let unread = || format!("a probe unread: {probe}");
+            let fields: Vec<&str> = probe.splitn(6, ',').collect();
+            let [x, y, r, g, b, what] = fields[..] else {
+                return Err(unread());
+            };
+            let number = |v: &str| v.parse::<f64>().map_err(|_| unread());
+            let (x, y) = (number(x)?, number(y)?);
+            let want = [number(r)? as i32, number(g)? as i32, number(b)? as i32];
+            let px = offset.0 + (x * ratio).round() as i32;
+            let py = offset.1 + (y * ratio).round() as i32;
+            let got = unsafe { GetPixel(dc, px, py) }.0;
+            let got = [
+                (got & 0xff) as i32,
+                ((got >> 8) & 0xff) as i32,
+                ((got >> 16) & 0xff) as i32,
+            ];
+            if got.iter().zip(want).any(|(g, w)| (g - w).abs() > TOLERANCE) {
+                return Ok(Some(format!(
+                    "{what} is {got:?} at ({px}, {py}), not {want:?}"
+                )));
+            }
+            checked += 1;
+        }
+        if checked < 2 {
+            return Err(format!("the picture wasn't checked: {probes}"));
+        }
+        Ok(None)
     }
 
     /// Writes `bitmap` to `file` as a PNG, with GDI+.

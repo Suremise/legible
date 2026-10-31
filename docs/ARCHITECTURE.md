@@ -880,7 +880,11 @@ since the process was created; "Performance", below, has the full record):
     legible-win --example readme-shots` takes the README's pictures of the real window, its title
     bar and menu bar included, in View and Split, light and dark: the shell run through
     `shell::harness` on `docs/screenshots/project-update.md`, each window copied with
-    `PrintWindow` from its own process.
+    `PrintWindow` from its own process. A page's state set isn't yet composited, so a copy
+    could be of the window a step behind (a light picture dark, Split's shown as View): each
+    is taken two frames after the page has the state, and checked against it (a spot of the
+    toolbar and the pressed mode button, in the colours the page gives them), and taken again
+    if it differs.
 - **The menu bar** (`menu`, `shell::menus`, `win32::menu`): File, Edit,
   View, Tools and Help above the toolbar, which stays as it is (the ⋯ menu too). **Windows' own
   menus, through `muda` 0.20** (MIT or Apache-2.0), not an imitation in the page, so Alt, the
