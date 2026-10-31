@@ -1386,11 +1386,33 @@
   const LAY_OUT_BATCH_MS = 300;
   let layOutRun = 0;
   /** Guesses the heights of the document's waiting blocks and starts laying them out: resolves
-      once the guesses are in, two frames on. */
+      once the guesses are in, two frames on. The blocks are taken a frame on, as the page has
+      prepared them (the editor's preview says it changed before its tables and code are
+      wrapped), and from the document as it is then. A document that isn't shown (Edit hides
+      it) can't be measured: it waits until it is. */
   function layOutWaiting() {
     const run = ++layOutRun;
-    const blocks = [...doc.children];
-    const guess = guessHeights(blocks);
+    return new Promise((resolve) => requestAnimationFrame(() => startLayOut(run, resolve)));
+  }
+
+  /** Whether the document is shown, so its blocks can be measured. */
+  const docShown = () => doc.getClientRects().length > 0;
+
+  function startLayOut(run, resolve) {
+    if (run !== layOutRun) return resolve();
+    if (!docShown()) {
+      // Started again once it's shown (the run goes on unless the document is replaced).
+      const watch = new ResizeObserver(() => {
+        if (run !== layOutRun) return watch.disconnect();
+        if (!docShown()) return;
+        watch.disconnect();
+        startLayOut(run, () => {});
+      });
+      watch.observe(doc);
+      return resolve();
+    }
+    const blocks = doc.children; // live: a block wrapped later is the one laid out
+    const guess = guessHeights([...blocks]);
     let next = 0;
     let batch = 100;
     const step = () => {
@@ -1411,17 +1433,13 @@
       batch = Math.max(10, Math.round(batch * Math.min(2, LAY_OUT_BATCH_MS / took)));
       if (next < blocks.length) requestIdleCallback(step, { timeout: 1000 });
     };
-    return new Promise((resolve) =>
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => {
-          if (run === layOutRun) {
-            guess();
-            requestIdleCallback(step, { timeout: 1000 });
-          }
-          resolve();
-        }),
-      ),
-    );
+    requestAnimationFrame(() => {
+      if (run !== layOutRun) return resolve();
+      if (!docShown()) return startLayOut(run, resolve); // hidden meanwhile: when it's shown
+      guess();
+      requestIdleCallback(step, { timeout: 1000 });
+      resolve();
+    });
   }
 
   // A waiting block counts as the height it's given (contain-intrinsic-size) until it's laid
@@ -1466,9 +1484,15 @@
   }
 
   function guessFrom(waiting, kinds, sampled) {
-    const heights = new Map(sampled.map((i) => [i, heightInside(waiting[i])]));
+    // Only what was measured: a block not laid out (not shown, say) has no height to go by.
+    const heights = new Map();
+    for (const i of sampled) {
+      const height = heightInside(waiting[i]);
+      if (Number.isFinite(height)) heights.set(i, height);
+    }
+    sampled = sampled.filter((i) => heights.has(i));
     const style = getComputedStyle(doc.querySelector(":scope > p") ?? waiting[0]);
-    const perLine = Math.max(1, parseFloat(style.width) / (parseFloat(style.fontSize) * 0.5));
+    const perLine = Math.max(1, parseFloat(style.width) / (parseFloat(style.fontSize) * 0.5)) || 80;
     const sizes = waiting.map((block) => {
       const text = block.textContent;
       let lines = block.querySelectorAll(LINES).length;
@@ -1482,8 +1506,8 @@
       const line = fitLine(list.filter((i) => heights.has(i)).map((i) => [sizes[i], heights.get(i)])) ?? all;
       if (!line) continue;
       for (const i of list) {
-        if (heights.has(i)) continue;
-        waiting[i].style.containIntrinsicSize = `auto ${line(sizes[i]).toFixed(1)}px`;
+        const guess = heights.has(i) ? NaN : line(sizes[i]);
+        if (Number.isFinite(guess)) waiting[i].style.containIntrinsicSize = `auto ${guess.toFixed(1)}px`;
       }
     }
   }

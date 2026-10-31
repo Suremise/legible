@@ -2784,6 +2784,37 @@ await test("scroll sync: the text and the document keep the same place, both way
   );
 });
 
+await test("a document rendered while Edit hides it: its length holds still back in View, and every block is laid out", async () => {
+  await open("long", { holdLayout: true });
+  await toMode("edit");
+  await select(0);
+  await type("Edited. ");
+  await caughtUp(); // rendered and prepared (its tables wrapped) while the document isn't shown
+  await toMode("view");
+  // Two frames on, every block that waits has a guess at its height (or was measured for them).
+  const guessed = `[...document.querySelectorAll("#document > *")].every((b) =>
+    getComputedStyle(b).contentVisibility !== "auto" || b.style.containIntrinsicSize !== "")`;
+  await until("the blocks' heights to be guessed", () => evaluate(guessed));
+  const drawn = await evaluate(pageLength);
+  const lengths = await evaluate(`(async () => {
+    const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const lengths = [];
+    for (let y = 0; y < ${pageLength} - innerHeight; y += innerHeight) {
+      window.scrollTo(0, y);
+      await frame();
+      lengths.push(${pageLength});
+    }
+    return lengths;
+  })()`);
+  const worst = lengths.reduce((w, l) => (Math.abs(l - drawn) > Math.abs(w - drawn) ? l : w), drawn);
+  expect(within(worst, drawn), `back in View ${drawn} px long, then ${worst} px as it scrolled`);
+  // The background layout, let go: every block laid out, the tables' new frames too.
+  await evaluate("releaseIdle()");
+  await until("every block to be laid out", () => evaluate(allLaidOut));
+  const laidOut = await evaluate(pageLength);
+  expect(within(laidOut, drawn), `back in View ${drawn} px long, ${laidOut} px laid out`);
+});
+
 await test("the place kept between the modes: View → Edit → type → View, and View → Split → scroll → View", async () => {
   await open("long");
   const lines = fileText("long").split("\n");

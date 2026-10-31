@@ -576,7 +576,11 @@ since the process was created; "Performance", below, has the full record):
     frames on, when the window is told it's drawn; and again whenever the document is replaced),
     up to 24 blocks of each kind (a paragraph, a list, a table, an alert...; a block with a
     picture in it is a kind of its own) are laid out, spread through the document, and
-    measured a frame later, once the frame has laid them out. Every other block gets its own
+    measured a frame later, once the frame has laid them out. The blocks are taken a frame
+    after the change, from the document as the page has prepared it (the editor's preview says
+    it changed before its tables and code are wrapped). A document that isn't shown (Edit
+    hides it while its preview renders) can't be measured, so the guess and the layout wait
+    until it is, as View or Split shows it again. Every other block gets its own
     `contain-intrinsic-size` from a straight line fitted to its kind's: height by size, where a
     block's size is the lines it would take (its rows, items and paragraphs, a code block's
     lines, its text at about two characters an em). The height is the one inside its padding
