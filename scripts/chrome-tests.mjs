@@ -56,6 +56,24 @@ writeFileSync(
   codeDoc,
   "# Code\n\n```js\n" + Array.from({ length: 500 }, (_, i) => `const value${i + 1} = ${i + 1};`).join("\n") + "\n```\n",
 );
+// The flat test document of docs/ARCHITECTURE.md ("Long documents, measured"): the showcase,
+// then the fixtures under "Part" headings, each part's footnote labels its own; about 205 KB and
+// 5,000 blocks of every kind.
+const flatDoc = join(work, "flat.md");
+{
+  const fixtures = ["gfm", "alerts", "headings", "frontmatter-yaml"].map((name) =>
+    readFileSync(join(repo, "crates", "legible-core", "tests", "fixtures", `${name}.md`), "utf8").replace(
+      /^---\r?\n[\s\S]*?\r?\n---\r?\n/,
+      "",
+    ),
+  );
+  let text = readFileSync(join(docfiles, "showcase.md"), "utf8");
+  for (let n = 1; text.length < 205000; n++) {
+    const part = fixtures.join("\n\n").replaceAll("[^note]", `[^note${n}]`).replaceAll("[^2]", `[^two${n}]`);
+    text += `\n\n## Part ${n}\n\n${part}`;
+  }
+  writeFileSync(flatDoc, text);
+}
 const sources = [
   join(docfiles, "showcase.md"),
   join(repo, "scripts", "chrome-tests", "find.md"),
@@ -66,6 +84,7 @@ const sources = [
   longDoc,
   manyDoc,
   codeDoc,
+  flatDoc,
 ];
 // Each page's Markdown, for the stand-in window to give the editor.
 const sourceOf = Object.fromEntries(sources.map((file) => [basename(file, ".md"), file]));
@@ -253,6 +272,20 @@ await cdp("Emulation.setDeviceMetricsOverride", { width: 1100, height: 800, devi
 await cdp("Page.addScriptToEvaluateOnNewDocument", {
   source: "window.sent = []; window.ipc = { postMessage: (m) => window.sent.push(m) };",
 });
+// A page opened with ?hold-layout keeps its idle-time work (the background layout of its blocks,
+// chrome.js) until releaseIdle(), so a test sees its blocks waiting, as a reader does in the
+// moments after a long document is drawn.
+await cdp("Page.addScriptToEvaluateOnNewDocument", {
+  source: `if (location.search === "?hold-layout") {
+    const later = window.requestIdleCallback.bind(window);
+    const held = [];
+    window.requestIdleCallback = (callback, options) => (held.push([callback, options]), 0);
+    window.releaseIdle = () => {
+      window.requestIdleCallback = later;
+      for (const [callback, options] of held.splice(0)) later(callback, options);
+    };
+  }`,
+});
 
 let errors = [];
 let mermaidStyleReports = 0;
@@ -282,7 +315,7 @@ async function evaluate(expression) {
 let previewInfo = { generation: 0, remote: null };
 
 let opened = null;
-async function open(name, { dark = false } = {}) {
+async function open(name, { dark = false, holdLayout = false } = {}) {
   opened = name;
   handled = 0;
   hold = false;
@@ -292,7 +325,7 @@ async function open(name, { dark = false } = {}) {
     media: "screen",
     features: [{ name: "prefers-color-scheme", value: dark ? "dark" : "light" }],
   });
-  await cdp("Page.navigate", { url: `${origin}/page/${name}` });
+  await cdp("Page.navigate", { url: `${origin}/page/${name}${holdLayout ? "?hold-layout" : ""}` });
   await until(`${name} to load`, () => evaluate("!!window.LegibleChrome?.ready").catch(() => false));
   await evaluate("LegibleChrome.ready");
 }
@@ -464,7 +497,7 @@ await test("Enter on an outline entry scrolls to its heading, below the chrome, 
 });
 
 await test("a long document: its end waits to be laid out, yet a jump, the place put back and find land", async () => {
-  await open("long");
+  await open("long", { holdLayout: true });
   // What's in a block is skipped until the block comes near: the last table's cells.
   const lastCell = `[...document.querySelectorAll("#document td")].at(-1)`;
   expect(!(await evaluate(`${lastCell}.checkVisibility({ contentVisibilityAuto: true })`)), "the end was laid out at once");
@@ -512,6 +545,55 @@ await test("a document of thousands of blocks: they're laid out once it's drawn,
   // The list waits still: its last item isn't laid out until the page gets near it.
   expect(!(await evaluate(`"laidOut" in ${list}.dataset`)), "the list was marked");
   expect(!(await evaluate(`${list}.lastElementChild.checkVisibility({ contentVisibilityAuto: true })`)), "the list was laid out");
+});
+
+// The page's length while blocks wait to be laid out: each block's height is guessed
+// (chrome.js, guessHeights), so the length holds still as the reader scrolls (and the
+// scrollbar's thumb keeps up with the pointer), from the moment the document is drawn.
+const LENGTH_TOLERANCE = 0.02;
+const pageLength = "document.documentElement.scrollHeight";
+const within = (length, of) => Math.abs(length - of) <= LENGTH_TOLERANCE * of;
+const allLaidOut = `[...document.querySelectorAll("#document > *")].every((b) => getComputedStyle(b).contentVisibility !== "auto")`;
+
+await test("a long document's length holds still as the reader scrolls through blocks not laid out yet", async () => {
+  await open("long", { holdLayout: true });
+  const drawn = await evaluate(pageLength);
+  const lengths = await evaluate(`(async () => {
+    const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const lengths = [];
+    for (let y = 0; y < ${pageLength} - innerHeight; y += innerHeight) {
+      window.scrollTo(0, y);
+      await frame();
+      lengths.push(${pageLength});
+    }
+    return lengths;
+  })()`);
+  const worst = lengths.reduce((w, l) => (Math.abs(l - drawn) > Math.abs(w - drawn) ? l : w), drawn);
+  expect(lengths.length > 20, `only ${lengths.length} screens`);
+  expect(within(worst, drawn), `drawn ${drawn} px long, then ${worst} px as it scrolled`);
+});
+
+await test("the flat 205 KB document: its length as drawn is within 2% of its length laid out", async () => {
+  await open("flat", { holdLayout: true });
+  const drawn = await evaluate(pageLength);
+  const waiting = await evaluate(
+    `[...document.querySelectorAll("#document > *")].filter((b) => getComputedStyle(b).contentVisibility === "auto").length`,
+  );
+  expect(waiting > 2000, `only ${waiting} blocks wait`);
+  // The background layout, let go: every block (none is too big) laid out, with no scrolling.
+  await evaluate("releaseIdle()");
+  await until("every block to be laid out", () => evaluate(allLaidOut));
+  expect(await evaluate("window.scrollY === 0"), "the page scrolled");
+  const laidOut = await evaluate(pageLength);
+  expect(within(laidOut, drawn), `drawn ${drawn} px long, ${laidOut} px laid out`);
+  // The guesses go as the blocks are laid out (left on, they slowed every step of the scroll).
+  const guessed = await evaluate(`document.querySelectorAll("#document > [style]").length`);
+  expect(guessed === 0, `${guessed} blocks keep their guesses`);
+});
+
+await test("a short document is laid out once it's drawn, too", async () => {
+  await open("showcase");
+  await until("every block to be laid out", () => evaluate(allLaidOut));
 });
 
 await test("find: Ctrl+F, a match across inline elements, none across blocks, F3 and Esc", async () => {

@@ -562,21 +562,38 @@ since the process was created; "Performance", below, has the full record):
     boxes, whose margins could reach out of them. The look is unchanged: the margins that used
     to reach out of a contained block (a loose list's last paragraph, a diagram's source) are
     none inside it, and `overflow-clip-margin` keeps a focused link's ring whole. Off the
-    screen, a block's height is a guess until it's shown, so a jump far down (the outline, a
-    place put back, find's match) is held on its target each frame until it stays (a second at
-    most; the reader's own scrolling, keys or pointer end it). The outline's current section
-    and the reader's place find their heading by a binary search (the headings' tops only go
+    screen, a block's height is a guess until it's laid out (next point), so a jump far down
+    (the outline, a place put back, find's match) is held on its target each frame until it
+    stays (a second at most; the reader's own scrolling, keys or pointer end it). The
+    outline's current section and the reader's place find their heading by a binary search (the headings' tops only go
     down the page), taking a heading inside a waiting block as where that block starts. The
     outline's entries wait the same way, for a document with thousands of headings.
-  - **A document of thousands of blocks is laid out once it's drawn:** the browser looks at
-    every waiting block on every frame (is it near the screen yet?), so with 50,000 of them (a
-    2 MB document) a step of the scroll waited 0.2 s. A document of 2,000 blocks or more has
-    them laid out in the browser's idle time once it's drawn, from the top, in batches of about
-    0.3 s (smaller batches took four times as long in all; all at once held the page for most
-    of a second), each block marked `data-laid-out`, which `window.css` lets be (copying drops
-    `data-` attributes). A block of more than 20,000 elements stays waiting, as it would hold
-    the page longer than a batch. A smaller document's blocks stay waiting: there the cost is a
-    few milliseconds a frame.
+  - **Each waiting block's height is guessed, so the page's length holds still:** a waiting
+    block counts as the height `contain-intrinsic-size` gives it. One height for all (80 px)
+    left a document 15–20% too long or too short, so it grew or shrank as the reader scrolled
+    into it, and the scrollbar's thumb lagged the pointer being dragged (or ran ahead of it)
+    until that part had been shown once. So as the document is drawn (`layOutWaiting`, two
+    frames on, when the window is told it's drawn; and again whenever the document is replaced),
+    up to 24 blocks of each kind (a paragraph, a list, a table, an alert...; a block with a
+    picture in it is a kind of its own) are laid out, spread through the document, and
+    measured a frame later, once the frame has laid them out. Every other block gets its own
+    `contain-intrinsic-size` from a straight line fitted to its kind's: height by size, where a
+    block's size is the lines it would take (its rows, items and paragraphs, a code block's
+    lines, its text at about two characters an em). The height is the one inside its padding
+    and border, as containment adds those. It's set from the script: read by CSS's `attr()`
+    from an attribute, the 2 MB document's draw was 0.4 s slower. On the test documents below,
+    and at 80% and 150% zoom, the length as guessed is within 0.15% of the laid-out length.
+  - **Every document is laid out once it's drawn:** the browser looks at every waiting block on
+    every frame (is it near the screen yet?), so with 50,000 of them (a 2 MB document) a step of
+    the scroll waited 0.2 s. Every document has its blocks laid out in the browser's idle time
+    once the guesses are in, from the top, in batches of about 0.3 s (smaller batches took four
+    times as long in all; all at once held the page for most of a second), each block marked
+    `data-laid-out`, which `window.css` lets be (copying drops `data-` attributes), and its
+    guess removed (left on 29,000 blocks, they made a step of the 2 MB document's scroll take
+    12 ms, not 6). A shorter document takes a batch or three: the whole showcase is laid out in
+    0.3 ms, a 30 KB document in 8 ms, the 200 KB report of prose in 15 ms (headless Edge), and
+    a step of their scroll takes 6 ms either way. A block of more than 20,000 elements stays
+    waiting (on its guess), as it would hold the page longer than a batch.
   - **Long documents, measured** (release build, portable copy, this PC, drawn as the shell
     logs it), with two kinds of test document. *Nested*: the showcase, then the GFM, alerts,
     headings and front matter fixtures repeated under "Part" headings; the fixtures define the
@@ -598,6 +615,15 @@ since the process was created; "Performance", below, has the full record):
       laid out within 0.4 s of being drawn, and a step of its scroll takes 6 ms (20 ms). The
       nested 2 MB document's first jump to the end takes 1.6 s either way, laying out its one
       block of 174,000 elements; the nested 205 KB one is drawn in 0.74 s (0.77 s).
+    - **The guessed heights, measured under load** (31 Oct 2026, other work using about 90% of
+      the CPU): the same session, builds interleaved, medians of six runs, against the build
+      before the guesses; quiet windows of a release build with the test-only `harness`
+      feature. The flat 205 KB document is drawn in 0.56 s (0.63 s), its first jump to the end
+      takes 42 ms (59 ms), a step of its scroll 6 ms (6 ms), and its length as drawn is within
+      0.02% of its length laid out (16.9% long). The flat 2 MB document is drawn in 2.49 s
+      (2.45 s), its first jump to the end takes 0.55 s (0.71 s), a step 6 ms (6 ms), and its
+      length is within 0.01% (17.2% long); the guesses' own work makes its page ready 0.3 s
+      later (3.26 s, against 2.95 s). Jumps once it's laid out are the same within noise.
   - **Layers:** the toolbar strip (and the find bar on it) is a layer of its own under the menu
     bar: a step lighter than the bar in dark, a touch whiter than the page's surfaces in light,
     with a hairline under it (`--toolbar-bg`, `--toolbar-rule`). The
