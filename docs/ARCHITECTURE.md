@@ -580,7 +580,8 @@ since the process was created; "Performance", below, has the full record):
     after the change, from the document as the page has prepared it (the editor's preview says
     it changed before its tables and code are wrapped). A document that isn't shown (Edit
     hides it while its preview renders) can't be measured, so the guess and the layout wait
-    until it is, as View or Split shows it again. Every other block gets its own
+    until it is, as View or Split shows it again. A live reload that keeps the reader's place as a share
+    of the page (its heading gone) puts it again once the guesses are in. Every other block gets its own
     `contain-intrinsic-size` from a straight line fitted to its kind's: height by size, where a
     block's size is the lines it would take (its rows, items and paragraphs, a code block's
     lines, its text at about two characters an em). The height is the one inside its padding

@@ -1355,14 +1355,20 @@
       console.error(error);
     }
     if (generation !== newestGeneration) return;
-    documentChanged();
+    const guessed = documentChanged();
     restoreAnchor(anchor);
     showUpdated();
     if (remote) remoteImages({ generation, ...remote });
+    // A place kept as a share of the page is put again once the blocks' heights are guessed:
+    // the share was of the page's length with every new block at 80 px. (A heading is held
+    // where it was put, as the heights change.)
+    await guessed;
+    const heading = anchor.id && document.getElementById(anchor.id);
+    if (generation === newestGeneration && !(heading && doc.contains(heading))) restoreAnchor(anchor);
   }
 
   /** The document's content was replaced (by live reload or the editor's preview): what's
-      built from it follows. */
+      built from it follows. Resolves once its blocks' heights are guessed (layOutWaiting). */
   function documentChanged() {
     buildOutline();
     if (!findBar.hidden) {
@@ -1370,7 +1376,7 @@
       search({ keep: true });
     }
     scheduleLayout();
-    layOutWaiting();
+    return layOutWaiting();
   }
 
   // Blocks off the screen wait to be laid out (window.css), so a long document is drawn at
