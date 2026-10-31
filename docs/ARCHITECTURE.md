@@ -984,6 +984,13 @@ since the process was created; "Performance", below, has the full record):
     be saved where it is. Save as (`save-as`, as Ctrl+Shift+S) is there whenever there's a
     document. The menu's Save follows the window's own state (`menu::State`), which also knows
     a save under way.
+  - **Undo and Redo on the toolbar,** beside Save as, in Split and Edit only (`hidden` in View,
+    and the strip's arrow keys pass them by): CodeMirror's own `undo` and `redo`
+    (`LegibleEditor.undo()`, `redo()`), the history Ctrl+Z and Ctrl+Y use. Each is greyed out
+    while its history is empty: the editor tells the strip with a `legible-history` event
+    (`{undo, redo}`, from `undoDepth` and `redoDepth`) whenever either changes. The pointer
+    never takes the focus (`pointerdown` is let go by), and the editor keeps it after either,
+    so typing carries on. The menu's Undo and Redo send the keys, as before.
   - **Generations:** the editor's previews are renders of the window's generation, and carry it
     with what their pictures may do (`preview(version, html, {generation, remote})`); the
     preview tells the chrome (`LegibleChrome.adopt`), so the bar's answers are for the render

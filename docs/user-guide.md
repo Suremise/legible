@@ -61,7 +61,7 @@ from this PC's apps for .md files** takes it out again.
 ## Reading
 
 The toolbar at the top has, from the left: **Open**; **View, Split and Edit**, with the dot for
-unsaved changes; **Save** and **Save as**; **Outline**; **Find**; the **zoom**; **Reading width and style**; **Print**; **Copy**; and **⋯** (More), with
+unsaved changes; **Save** and **Save as**; **Undo** and **Redo**, in Split and Edit; **Outline**; **Find**; the **zoom**; **Reading width and style**; **Print**; **Copy**; and **⋯** (More), with
 Save as PDF, Open in editor, Show in folder, Recent files, Settings and About. Every button says
 what it does, and its shortcut, when you hover over it. The menu bar above it (File, Edit, View,
 Tools and Help) has the same commands, and works from the keyboard with Alt.
@@ -207,6 +207,10 @@ the document shows where you were in the text, or in Split's document.
 
 The text is in the reading style's font, with Markdown's marks faded and headings larger.
 **Settings > Appearance > Editor font** can make it Monospace instead.
+
+**Undo** and **Redo** are on the toolbar in Split and Edit, beside Save as: the same as Ctrl+Z and
+Ctrl+Y. Each is greyed out while there's nothing to undo or redo, and you can carry on typing
+straight after either. Undoing back to the saved text clears the unsaved dot.
 
 **Shortcuts while editing:**
 

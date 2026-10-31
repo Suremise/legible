@@ -118,6 +118,9 @@
     // Save: a disk. Save as: the disk, a pencil over its corner.
     save: ["M2.5 1.5h9l3 3v10h-12zM5 1.5v4h6v-4M4.5 14.5v-5h7v5"],
     "save-as": ["M7.5 14.5h-5v-13h9l3 3v2.5M5 1.5v4h6v-4M4.5 14.5v-5h4", "M9.5 15l.5-2l4-4l1.5 1.5l-4 4z"],
+    // Undo and Redo: an arrow turning back, and its mirror.
+    undo: ["M5 3L2 6l3 3M2 6h7.5a4 4 0 0 1 0 8H7"],
+    redo: ["M11 3l3 3l-3 3M14 6H6.5a4 4 0 0 0 0 8H9"],
     more: ["M3 8h.01M8 8h.01M13 8h.01"],
     up: ["M3.5 10l4.5-4.5l4.5 4.5"],
     down: ["M3.5 6l4.5 4.5l4.5-4.5"],
@@ -379,6 +382,31 @@
     attrs: { "data-command": "save-as", "aria-disabled": noDocument ? "true" : undefined },
     onclick: noDocument ? undefined : () => send("save-as"),
   });
+
+  // Undo and Redo, beside Save as, in Split and Edit only (View has nothing to undo): the
+  // editor's own history, as Ctrl+Z and Ctrl+Y, each greyed out while there's nothing in it. The
+  // pointer never takes the focus from the text, and the editor keeps it after either, so typing
+  // carries on.
+  function historyButton(name, shortcut) {
+    const node = button(s(name), {
+      iconName: name,
+      shortcut,
+      attrs: { "data-command": name, "aria-disabled": "true", hidden: true },
+      onclick: () => node.getAttribute("aria-disabled") !== "true" && window.LegibleEditor?.[name]?.(),
+    });
+    node.addEventListener("pointerdown", (event) => event.preventDefault());
+    return node;
+  }
+  const undoButton = historyButton("undo", keys("Ctrl", "Z"));
+  const redoButton = historyButton("redo", keys("Ctrl", "Y"));
+  const usable = (node, yes) => (yes ? node.removeAttribute("aria-disabled") : node.setAttribute("aria-disabled", "true"));
+  document.addEventListener("legible-history", (event) => {
+    usable(undoButton, event.detail.undo);
+    usable(redoButton, event.detail.redo);
+  });
+  document.addEventListener("legible-mode", (event) => {
+    undoButton.hidden = redoButton.hidden = event.detail === "view";
+  });
   // The editor's preview replaced the document: the outline follows.
   document.addEventListener("legible-document-changed", () => documentChanged());
 
@@ -471,6 +499,8 @@
       unsaved,
       saveButton,
       saveAsButton,
+      undoButton,
+      redoButton,
     ),
     el(
       "div",
@@ -496,7 +526,7 @@
   toolbar.addEventListener("keydown", (event) => {
     if (event.target.closest(".menu")) return;
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-    const tools = [...toolbar.querySelectorAll("button.tool")];
+    const tools = [...toolbar.querySelectorAll("button.tool")].filter((b) => !b.hidden);
     const i = tools.indexOf(document.activeElement);
     if (i < 0) return;
     event.preventDefault();
