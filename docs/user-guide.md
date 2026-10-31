@@ -24,11 +24,11 @@ as you expect.
 - **File > Open** (Ctrl+O), or the toolbar's **Open**.
 - **Drag** one or more Markdown files onto a Legible window.
 - **A link** in one Markdown file to another opens it in Legible.
-- **Recently opened files:** **File > Open recent**, the **⋯** menu's Recent files, or right-click
-  Legible's icon on the taskbar. They list the ten files you opened last; hover over one to see
-  where it is.
+- **Recently opened files:** the arrow beside the toolbar's **Open** (or Down on Open, from the
+  keyboard), **File > Open recent**, or right-click Legible's icon on the taskbar. They list the
+  ten files you opened last; hover over one to see where it is.
 
-**File > Open**, **Open recent** and dragging a file onto a window show the file in that window, in
+**Open**, a recent file and dragging a file onto a window show the file in that window, in
 place of the one it had. If that file has unsaved changes, Legible asks first, as it does when you
 close the window: **Cancel** leaves everything as it was. Drag several files at once and the first
 takes the window's place, and each of the others opens in a window of its own.
@@ -60,9 +60,11 @@ from this PC's apps for .md files** takes it out again.
 
 ## Reading
 
-The toolbar at the top has, from the left: **Open**; **View, Split and Edit**, with the dot for
-unsaved changes; **Save** and **Save as**; **Undo** and **Redo**, in Split and Edit; **Outline**; **Find**; the **zoom**; **Reading width and style**; **Print**; **Copy**; and **⋯** (More), with
-Save as PDF, Open in editor, Show in folder, Recent files, Settings and About. Every button says
+The toolbar at the top has, from the left: **Open**, with an arrow that lists the recent files;
+**View, Split and Edit**, with the dot for unsaved changes; **Save** and **Save as**; **Undo** and
+**Redo**, in Split and Edit; **Outline**; **Find**; the **zoom**; **Reading width and style**;
+**Print**; **Copy**; and **⋯** (More), with Save as PDF, Open in editor, Show in folder, Settings
+and About. Every button says
 what it does, and its shortcut, when you hover over it. The menu bar above it (File, Edit, View,
 Tools and Help) has the same commands, and works from the keyboard with Alt.
 

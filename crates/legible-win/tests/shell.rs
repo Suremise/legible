@@ -195,6 +195,10 @@ const CASES: &[(&str, Case)] = &[
         open_over_unsaved_changes,
     ),
     (
+        "a recent file picked from Open's list on the toolbar: unsaved changes asked about first, Cancel keeps them, Don't save opens it",
+        open_recent_from_the_strip,
+    ),
+    (
         "Open over unsaved changes kept as Windows ends the session: the copy goes once they're dropped",
         open_drops_the_copy_kept,
     ),
@@ -1703,6 +1707,57 @@ fn open_replaces_a_clean_document(d: &Driver, docs: &Path) -> Result<()> {
     if d.eval(w, &shows("Old file changed"))?.as_deref() != Some("false") {
         return Err("the old file's change is shown".into());
     }
+    close_clean(d, w)
+}
+
+fn open_recent_from_the_strip(d: &Driver, docs: &Path) -> Result<()> {
+    let first = document(docs, "strip-recent-first", b"# First\n")?;
+    let second = document(docs, "strip-recent-second", b"# Second\n")?;
+    // Opened once, so it's a recent file.
+    let w2 = d.open(&second)?;
+    d.until(w2, "the second file", &shows("Second"))?;
+    close_clean(d, w2)?;
+    let w = open_editing(d, &first)?;
+    edited(d, w, "Kept. ")?;
+    let arrow = "document.querySelector('#toolbar .split-arrow')";
+    let item = "[...document.querySelectorAll('.menu:not([hidden]) .menu-item')]\
+                .find((m) => m.textContent === 'strip-recent-second.md')";
+    // The list has it (opened and closed again to look).
+    d.until(
+        w,
+        "the second file on Open's list",
+        &format!("(() => {{ {arrow}.click(); const found = !!{item}; {arrow}.click(); return found; }})()"),
+    )?;
+    let pick = format!("{arrow}.click(); {item}.click()");
+    // Cancel: the window stays as it was, the edit unsaved and taking edits.
+    let asked = d.questions();
+    d.answer(SaveAnswer::Cancel);
+    d.eval(w, &pick)?;
+    d.until_true("the unsaved changes asked about", || {
+        Ok(d.questions() == asked + 1)
+    })?;
+    if d.file_of(w)? != Some(canonical(&first)?) {
+        return Err("Cancel didn't keep the document".into());
+    }
+    d.until(
+        w,
+        "the edit, still unsaved and taking edits",
+        &format!(
+            "LegibleEditor.isDirty() && {TEXT}.startsWith('Kept. ') && !LegibleEditor.isFrozen()"
+        ),
+    )?;
+    // Don't save: the recent file shows in this window.
+    d.answer(SaveAnswer::DontSave);
+    d.eval(w, &pick)?;
+    let canonical = canonical(&second)?;
+    d.until_true("the recent file in the window", || {
+        Ok(d.file_of(w)? == Some(canonical.clone()))
+    })?;
+    d.until(w, "the second file shown", &shows("Second"))?;
+    if d.questions() != asked + 2 {
+        return Err("Don't save wasn't asked once".into());
+    }
+    file_is(d, &first, b"# First\n")?;
     close_clean(d, w)
 }
 
