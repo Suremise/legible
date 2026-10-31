@@ -1355,14 +1355,20 @@
       console.error(error);
     }
     if (generation !== newestGeneration) return;
-    documentChanged();
+    const guessed = documentChanged();
     restoreAnchor(anchor);
     showUpdated();
     if (remote) remoteImages({ generation, ...remote });
+    // A place kept as a share of the page is put again once the blocks' heights are guessed:
+    // the share was of the page's length with every new block at 80 px. (A heading is held
+    // where it was put, as the heights change.)
+    await guessed;
+    const heading = anchor.id && document.getElementById(anchor.id);
+    if (generation === newestGeneration && !(heading && doc.contains(heading))) restoreAnchor(anchor);
   }
 
   /** The document's content was replaced (by live reload or the editor's preview): what's
-      built from it follows. */
+      built from it follows. Resolves once its blocks' heights are guessed (layOutWaiting). */
   function documentChanged() {
     buildOutline();
     if (!findBar.hidden) {
@@ -1370,25 +1376,49 @@
       search({ keep: true });
     }
     scheduleLayout();
-    layOutWaiting();
+    return layOutWaiting();
   }
 
   // Blocks off the screen wait to be laid out (window.css), so a long document is drawn at
   // once. With thousands of them, though, the browser's care for each (is it near the screen
   // yet?) costs every frame: in a 2 MB document, a step of the scroll waited 0.2 s. So once it's
-  // drawn, a document of LAY_OUT_FROM blocks or more has them laid out in the browser's idle
-  // time, from the top, a batch at a time, each block marked data-laid-out (window.css lets it
-  // be). Batches of about 0.3 s: smaller ones took four times as long in all, the page as slow
-  // to scroll meanwhile; all at once held it for most of a second. A block with a great deal
-  // in it stays waiting, as laying it out would hold the page longer than a batch.
-  const LAY_OUT_FROM = 2000;
+  // drawn, every document has its blocks laid out in the browser's idle time, from the top, a
+  // batch at a time, each block marked data-laid-out (window.css lets it be). Batches of about
+  // 0.3 s: smaller ones took four times as long in all, the page as slow to scroll meanwhile;
+  // all at once held it for most of a second. A block with a great deal in it stays waiting, as
+  // laying it out would hold the page longer than a batch. Until a block is laid out, its
+  // height is guessed (guessHeights), so the page's length holds still meanwhile.
   const LAY_OUT_MOST = 20000; // elements in one block
   const LAY_OUT_BATCH_MS = 300;
   let layOutRun = 0;
+  /** Guesses the heights of the document's waiting blocks and starts laying them out: resolves
+      once the guesses are in, two frames on. The blocks are taken a frame on, as the page has
+      prepared them (the editor's preview says it changed before its tables and code are
+      wrapped), and from the document as it is then. A document that isn't shown (Edit hides
+      it) can't be measured: it waits until it is. */
   function layOutWaiting() {
     const run = ++layOutRun;
-    const blocks = [...doc.children];
-    if (blocks.length < LAY_OUT_FROM) return;
+    return new Promise((resolve) => requestAnimationFrame(() => startLayOut(run, resolve)));
+  }
+
+  /** Whether the document is shown, so its blocks can be measured. */
+  const docShown = () => doc.getClientRects().length > 0;
+
+  function startLayOut(run, resolve) {
+    if (run !== layOutRun) return resolve();
+    if (!docShown()) {
+      // Started again once it's shown (the run goes on unless the document is replaced).
+      const watch = new ResizeObserver(() => {
+        if (run !== layOutRun) return watch.disconnect();
+        if (!docShown()) return;
+        watch.disconnect();
+        startLayOut(run, () => {});
+      });
+      watch.observe(doc);
+      return resolve();
+    }
+    const blocks = doc.children; // live: a block wrapped later is the one laid out
+    const guess = guessHeights([...blocks]);
     let next = 0;
     let batch = 100;
     const step = () => {
@@ -1396,7 +1426,12 @@
       const started = performance.now();
       for (const end = Math.min(blocks.length, next + batch); next < end; next++) {
         const block = blocks[next];
-        if (block.getElementsByTagName("*").length <= LAY_OUT_MOST) block.dataset.laidOut = "";
+        if (block.getElementsByTagName("*").length > LAY_OUT_MOST) continue;
+        block.dataset.laidOut = "";
+        // Its guess goes: with one left on every block, a 2 MB document's step of the scroll
+        // took twice as long (12 ms).
+        block.style.removeProperty("contain-intrinsic-size");
+        if (block.getAttribute("style") === "") block.removeAttribute("style");
       }
       void doc.offsetHeight; // laid out here, so the batch's time is known
       // The next batch sized for LAY_OUT_BATCH_MS, as this one went (at most twice as many).
@@ -1404,7 +1439,114 @@
       batch = Math.max(10, Math.round(batch * Math.min(2, LAY_OUT_BATCH_MS / took)));
       if (next < blocks.length) requestIdleCallback(step, { timeout: 1000 });
     };
-    requestIdleCallback(step, { timeout: 1000 });
+    requestAnimationFrame(() => {
+      if (run !== layOutRun) return resolve();
+      if (!docShown()) return startLayOut(run, resolve); // hidden meanwhile: when it's shown
+      guess();
+      requestIdleCallback(step, { timeout: 1000 });
+      resolve();
+    });
+  }
+
+  // A waiting block counts as the height it's given (contain-intrinsic-size) until it's laid
+  // out. One height for all (80 px) left the page 15–20% too long or too short, so it grew or
+  // shrank as the reader scrolled, and the scrollbar's thumb lagged the pointer or ran ahead of
+  // it. So each block's height is guessed, as its own contain-intrinsic-size (set here: read by
+  // CSS's attr() from an attribute, it made a 2 MB document's draw 0.4 s slower): a few
+  // blocks of each kind (a paragraph, a table, an alert...) are laid out and measured, and the
+  // rest are guessed from their own size, by a line fitted to those of their kind. A block's
+  // size is the lines it would take: the rows, items and paragraphs in it, a code block's lines,
+  // and its text at about two characters an em. The guess is the height inside the block's
+  // padding and border, as containment adds them. A block with a picture in it is a kind of its
+  // own, as the picture's height isn't in its size. On the test documents (docs/ARCHITECTURE.md,
+  // "Long documents"), the page's length as guessed came within 0.15% of its laid-out length.
+  // The blocks to measure are marked first and measured two frames on, once a frame has laid
+  // them out: measured at once, a 2 MB document was laid out once more for them.
+  const GUESS_SAMPLES = 24; // of each kind
+  const LINES = "li, tr, p, br, dt, dd, h1, h2, h3, h4, h5, h6, blockquote, pre, hr";
+  const MEDIA = "img, svg, iframe, video";
+  /** Marks the blocks to measure, and returns the rest of the guess, to run once a frame has
+      laid them out. */
+  function guessHeights(blocks) {
+    const waiting = blocks.filter((b) => !("laidOut" in b.dataset) && getComputedStyle(b).contentVisibility === "auto");
+    if (!waiting.length) return () => {};
+    // A few of each kind, spread through the document, laid out (they stay so) and measured.
+    const kinds = new Map();
+    waiting.forEach((block, i) => {
+      const kind = `${block.tagName}.${block.classList[0] ?? ""}${block.querySelector(MEDIA) ? "+" : ""}`;
+      if (!kinds.has(kind)) kinds.set(kind, []);
+      kinds.get(kind).push(i);
+    });
+    const sampled = [];
+    for (const list of kinds.values()) {
+      const n = Math.min(GUESS_SAMPLES, list.length);
+      for (let j = 0; j < n; j++) {
+        const i = list[Math.floor(((j + 0.5) * list.length) / n)];
+        if (waiting[i].getElementsByTagName("*").length <= LAY_OUT_MOST) sampled.push(i);
+      }
+    }
+    for (const i of sampled) waiting[i].dataset.laidOut = "";
+    return () => guessFrom(waiting, kinds, sampled);
+  }
+
+  function guessFrom(waiting, kinds, sampled) {
+    // Only what was measured: a block not laid out (not shown, say) has no height to go by.
+    const heights = new Map();
+    for (const i of sampled) {
+      const height = heightInside(waiting[i]);
+      if (Number.isFinite(height)) heights.set(i, height);
+    }
+    sampled = sampled.filter((i) => heights.has(i));
+    const style = getComputedStyle(doc.querySelector(":scope > p") ?? waiting[0]);
+    const perLine = Math.max(1, parseFloat(style.width) / (parseFloat(style.fontSize) * 0.5)) || 80;
+    const sizes = waiting.map((block) => {
+      const text = block.textContent;
+      let lines = block.querySelectorAll(LINES).length;
+      if (block.matches("pre, .code-block")) for (let i = text.indexOf("\n"); i >= 0; i = text.indexOf("\n", i + 1)) lines++;
+      return lines + Math.ceil(text.length / perLine);
+    });
+    // Each kind's line through its blocks' sizes and heights; the line through all of them for
+    // a kind with none measured.
+    const all = fitLine(sampled.map((i) => [sizes[i], heights.get(i)]));
+    for (const list of kinds.values()) {
+      const line = fitLine(list.filter((i) => heights.has(i)).map((i) => [sizes[i], heights.get(i)])) ?? all;
+      if (!line) continue;
+      for (const i of list) {
+        const guess = heights.has(i) ? NaN : line(sizes[i]);
+        if (Number.isFinite(guess)) waiting[i].style.containIntrinsicSize = `auto ${guess.toFixed(1)}px`;
+      }
+    }
+  }
+
+  /** A laid-out block's height inside its padding and border, in its own pixels (as
+      contain-intrinsic-size takes it). */
+  function heightInside(block) {
+    const style = getComputedStyle(block);
+    let height = parseFloat(style.height);
+    if (style.boxSizing === "border-box") {
+      for (const side of ["paddingTop", "paddingBottom", "borderTopWidth", "borderBottomWidth"]) height -= parseFloat(style[side]);
+    }
+    return Math.max(0, height);
+  }
+
+  /** The straight line through [x, y] points that fits them best (least squares), as a function
+      of x, never below 0; through the origin when the xs are too few or all the same; null for
+      no points. */
+  function fitLine(points) {
+    const n = points.length;
+    if (!n) return null;
+    let sx = 0, sy = 0, sxx = 0, sxy = 0;
+    for (const [x, y] of points) {
+      sx += x;
+      sy += y;
+      sxx += x * x;
+      sxy += x * y;
+    }
+    const d = n * sxx - sx * sx;
+    if (n < 3 || d < 1e-9 * n * n) return sx ? (x) => (sy / sx) * x : () => sy / n;
+    const slope = (n * sxy - sx * sy) / d;
+    const at0 = (sy - slope * sx) / n;
+    return (x) => Math.max(0, at0 + slope * x);
   }
 
   // --- Pictures from the internet ------------------------------------------------------------
@@ -2242,13 +2384,8 @@
     buildOutline();
     restorePlace();
     scheduleLayout();
-    return new Promise((resolve) =>
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => {
-          layOutWaiting();
-          resolve();
-        }),
-      ),
-    );
+    // Two frames on, as the window is told it's drawn: the guesses at the blocks' heights are
+    // in, and their layout begins.
+    return layOutWaiting();
   });
 })();

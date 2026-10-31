@@ -58,8 +58,9 @@ body {
    document is drawn as soon as its first screen is (the browser keeps each block's height once
    it has been shown). Only the blocks Legible renders: the headings always are laid out (the
    outline, its jumps and the reader's place are measured by them), and so are a document's own
-   HTML boxes, whose margins could reach out of them. In a document of thousands of blocks,
-   chrome.js lays them out once it's drawn, marking each data-laid-out. */
+   HTML boxes, whose margins could reach out of them. Once the document is drawn, chrome.js
+   gives each waiting block a guess at its height (its own contain-intrinsic-size, in place of
+   80px) and lays them out in the background, marking each data-laid-out. */
 @media screen {
   #document > :is(p, ul, ol, blockquote, pre, table, hr, .table-frame, .code-block, .alert, .diagram,
     details.properties, section.footnotes):not([data-laid-out]) {
