@@ -608,7 +608,9 @@
   toolbar.addEventListener("keydown", (event) => {
     if (event.target.closest(".menu")) return;
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-    const tools = [...toolbar.querySelectorAll("button.tool")].filter((b) => !b.hidden);
+    // Only those shown: not hidden themselves (Undo and Redo in View), nor in a group a narrow
+    // window has moved into ⋯ (fitToolbar).
+    const tools = [...toolbar.querySelectorAll("button.tool")].filter((b) => !b.closest("[hidden]"));
     const i = tools.indexOf(document.activeElement);
     if (i < 0) return;
     event.preventDefault();

@@ -544,8 +544,9 @@ since the process was created; "Performance", below, has the full record):
   Open, the modes, Save, Save as, Undo, Redo and the More menu always stay. A hidden group's
   commands are at the top of the More menu, in the strip's order and doing what its buttons do,
   their shortcuts as hints (the reading width and style as their checked items under a heading),
-  so nothing ever overlaps or leaves the window; the strip's arrow keys pass hidden buttons by,
-  and a menu of a group that goes closes with it. The document
+  so nothing ever overlaps or leaves the window; the strip's arrow keys pass by every button
+  not shown (hidden itself, or in a hidden group: `closest("[hidden]")`), and a menu of a group
+  that goes closes with it. The document
   stays a direct child of `<body>` and the page itself scrolls, so the print stylesheet's rule
   (`body > :not(#document)` hidden) hides all the chrome, and `window.css` resets the zoom and
   the chrome's padding in print. Everything is built with `createElement` and `textContent`,

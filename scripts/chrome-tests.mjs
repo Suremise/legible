@@ -2211,6 +2211,26 @@ await test("a narrow window: the strip's groups move into ⋯ in turn, never ove
         if (width === 1100) expect(!gone.some(Boolean), `${mode} at 1100: ${shown}`);
       }
     }
+    // The strip's arrow keys pass by the groups that have gone: at 480 in View (the zoom and
+    // reading moved into ⋯), and at 400 in Split (Outline and Find too).
+    const label = () => evaluate("document.activeElement.getAttribute('aria-label')");
+    const focusOn = (name) => evaluate(`document.querySelector('#toolbar [aria-label=${JSON.stringify(name)}]').focus()`);
+    const arrow = async (from, keyName, keyCode) => {
+      await focusOn(from);
+      await key(keyName, { keyCode });
+      return label();
+    };
+    await toMode("view");
+    const view480 = await at(480);
+    expect(hasNone(view480.shown, [...OUT, ...LOOK]) && hasAll(view480.shown, FIND), `View at 480: ${view480.shown}`);
+    expect((await arrow("Find", "ArrowRight", 39)) === "More", `Right from Find: ${await label()}`);
+    expect((await arrow("More", "ArrowLeft", 37)) === "Find", `Left from More: ${await label()}`);
+    await toMode("split");
+    const split400 = await at(400);
+    expect(hasNone(split400.shown, [...OUT, ...LOOK, ...FIND]), `Split at 400: ${split400.shown}`);
+    expect((await arrow("Redo", "ArrowRight", 39)) === "More", `Right from Redo: ${await label()}`);
+    expect((await arrow("More", "ArrowLeft", 37)) === "Redo", `Left from More: ${await label()}`);
+    expect((await arrow("More", "ArrowRight", 39)) === "Open", `Right from More: ${await label()}`);
     // Split at 400: everything but the left side and ⋯ has gone into ⋯, in strip order, each
     // doing what its button does.
     const { shown } = await at(400);
