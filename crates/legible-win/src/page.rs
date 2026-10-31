@@ -316,6 +316,8 @@ pub fn chrome_strings() -> String {
         "save-as",
         "save-nothing",
         "save-not-editable",
+        "undo",
+        "redo",
         "status-copy-path",
         "status-path-copied",
         "status-label",

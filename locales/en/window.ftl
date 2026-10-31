@@ -283,6 +283,9 @@ chrome-save = Save
 chrome-save-as = Save as
 chrome-save-nothing = nothing to save
 chrome-save-not-editable = this file can't be saved where it is. Use Save as to save it somewhere else.
+# The toolbar's Undo and Redo, beside Save as, in Split and Edit only: the editor's own history.
+chrome-undo = Undo
+chrome-redo = Redo
 chrome-editor = Markdown text
 chrome-editor-resize = Resize the text and the document
 chrome-settings-editor-font = Editor font

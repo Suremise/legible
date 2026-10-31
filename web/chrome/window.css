@@ -133,6 +133,11 @@ dialog.panel {
   color: var(--text);
 }
 
+/* A tool not shown in this mode (Undo and Redo, in View). */
+.tool[hidden] {
+  display: none;
+}
+
 .tool {
   display: inline-flex;
   align-items: center;

@@ -305,6 +305,16 @@ async function key(keyName, { code = keyName, keyCode = 0, ctrl = false, shift =
   await cdp("Input.dispatchKeyEvent", { type: "keyUp", ...base });
 }
 
+/** A click in this headless page at the middle of what `selector` finds, as the pointer
+    makes one (pointerdown and all): never input to anything else. */
+async function clickOn(selector) {
+  const { x, y } = await evaluate(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+  for (const type of ["mousePressed", "mouseReleased"]) {
+    await cdp("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1 });
+  }
+}
+
 /** Enter, typed as a key that makes text: a focused button is pressed by it. */
 async function enter() {
   const base = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 };
@@ -2040,6 +2050,65 @@ await test("Save and Save as on the strip: beside the unsaved dot, Save usable o
   await open("empty");
   [disabled, tip, asDisabled] = await state();
   expect(disabled === "true" && tip === "Save: nothing to save" && asDisabled === "true", `empty: ${await state()}`);
+});
+
+await test("Undo and Redo on the strip: in Split and Edit only, greyed out with nothing to undo or redo, the focus kept in the text", async () => {
+  await open("short");
+  const sel = (name) => `#toolbar [data-command="${name}"]`;
+  const at = (name) => `document.querySelector('${sel(name)}')`;
+  const state = () =>
+    evaluate(`({
+      shown: !${at("undo")}.hidden && !${at("redo")}.hidden && ${at("undo")}.offsetWidth > 0 && ${at("redo")}.offsetWidth > 0,
+      undo: ${at("undo")}.getAttribute("aria-disabled") !== "true",
+      redo: ${at("redo")}.getAttribute("aria-disabled") !== "true",
+      save: ${at("save")}.getAttribute("aria-disabled") !== "true",
+      dot: !document.querySelector("#toolbar .unsaved").hidden,
+      tips: [${at("undo")}.title, ${at("redo")}.title],
+    })`);
+  expect(!(await state()).shown, "Undo and Redo in View");
+  await toMode("split");
+  let now = await state();
+  expect(now.shown && !now.undo && !now.redo, `Split, nothing done yet: ${JSON.stringify(now)}`);
+  expect(now.tips.join() === "Undo (Ctrl+Z),Redo (Ctrl+Y)", `tooltips: ${now.tips}`);
+  const order = await evaluate(`[...document.querySelectorAll("#toolbar button.tool")].filter((b) => !b.hidden).map((b) => b.getAttribute("aria-label"))`);
+  const i = order.indexOf("Save as");
+  expect(order.slice(i, i + 3).join() === "Save as,Undo,Redo", `the strip: ${order}`);
+  // A greyed-out Undo does nothing.
+  const before = await text();
+  await clickOn(sel("undo"));
+  expect((await text()) === before, "a greyed-out Undo changed the text");
+  // An edit: Undo usable, Redo not, unsaved.
+  await select(0);
+  await type("x");
+  await until("Undo to be usable", async () => (await state()).undo);
+  now = await state();
+  expect(!now.redo && now.save && now.dot, `after an edit: ${JSON.stringify(now)}`);
+  // Undo, clicked: back to the saved text, so the dot goes and Save greys; Redo usable; the
+  // focus still in the text.
+  await clickOn(sel("undo"));
+  await until("the edit undone", async () => (await text()) === before);
+  now = await state();
+  expect(!now.undo && now.redo && !now.save && !now.dot, `after Undo: ${JSON.stringify(now)}`);
+  expect(await evaluate("LegibleEditor.view().hasFocus"), "Undo took the focus from the text");
+  // Redo, clicked: the edit back; and typing carries on in the text.
+  await clickOn(sel("redo"));
+  await until("the edit redone", async () => (await text()).startsWith("x"));
+  now = await state();
+  expect(now.undo && !now.redo && now.save && now.dot, `after Redo: ${JSON.stringify(now)}`);
+  expect(await evaluate("LegibleEditor.view().hasFocus"), "Redo took the focus from the text");
+  await type("y");
+  expect((await text()).startsWith("xy"), `typing after Redo: ${JSON.stringify((await text()).slice(0, 10))}`);
+  // Ctrl+Z is the same history.
+  await ctrlKey("z", "KeyZ", 90);
+  await until("Ctrl+Z to undo the typing", async () => (await state()).redo);
+  // Edit shows them too; View hides them, and the strip's arrow keys pass them by.
+  await toMode("edit");
+  expect((await state()).shown, "Undo and Redo hidden in Edit");
+  await toMode("view");
+  expect(!(await state()).shown, "Undo and Redo shown in View");
+  await evaluate(`${at("save-as")}.focus()`);
+  await key("ArrowRight", { keyCode: 39 });
+  expect((await evaluate("document.activeElement.getAttribute('aria-label')")) === "Outline", "the arrow key went to a hidden button");
 });
 
 // The conflict bar's buttons, by their text.

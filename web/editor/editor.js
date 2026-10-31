@@ -247,6 +247,7 @@
           state.EditorState.transactionFilter.of((tr) => (frozen && tr.docChanged && !applyingDisk ? [] : tr)),
           view.EditorView.updateListener.of((update) => {
             if (update.docChanged) changed(update.state.doc);
+            historyChanged(update.state);
           }),
         ],
       }),
@@ -397,6 +398,26 @@
       stands unsaved without the text (a session's end asked between the two kept no copy). */
   function sendText(text) {
     send(`text\n${version}\n${text.toString()}`);
+  }
+
+  // Whether there's anything to undo and to redo, as the toolbar's Undo and Redo show it: told
+  // with a `legible-history` event whenever either changes.
+  let history = { undo: false, redo: false };
+  function historyChanged(state) {
+    const { undoDepth, redoDepth } = window.CM.commands;
+    const next = { undo: undoDepth(state) > 0, redo: redoDepth(state) > 0 };
+    if (next.undo === history.undo && next.redo === history.redo) return;
+    history = next;
+    document.dispatchEvent(new CustomEvent("legible-history", { detail: { ...history } }));
+  }
+
+  /** The toolbar's Undo or Redo (`name`): CodeMirror's own, the history Ctrl+Z and Ctrl+Y use,
+      the focus left in the text so typing carries on. Whether it did anything. */
+  function runHistory(name) {
+    if (!editor || mode === "view") return false;
+    const done = window.CM.commands[name](editor);
+    editor.focus();
+    return done;
   }
 
   function setDirty(next) {
@@ -1095,6 +1116,11 @@
     },
     setMode,
     mode: () => mode,
+    /** The toolbar's Undo and Redo, in Split and Edit. */
+    undo: () => runHistory("undo"),
+    redo: () => runHistory("redo"),
+    /** Whether there's anything to undo and to redo. */
+    history: () => ({ ...history }),
     /** The menu bar's Find and Replace: what Ctrl+F and Ctrl+H do in the text. */
     find() {
       if (!editor || mode === "view") return;
