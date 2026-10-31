@@ -64,7 +64,9 @@ shares what it uses safely: temp folders, `APPDATA` per test, names of its own.
   (`cargo run -p legible-win --example readme-shots`, a few seconds; the real window, not
   focused, with Legible's folders in a temp folder of its run's own) when the window's look
   changes: they're written to `target/ui-shots/readme` and copied into `docs/screenshots/`
-  once approved.
+  once approved. Each is taken once the page has painted the theme and mode asked for, and
+  checked (the toolbar's colour, the pressed mode button): a picture a step behind is taken
+  again, and the run's output says so.
 - **The chrome's and the editor's browser tests** (`node scripts/chrome-tests.mjs`, about 20
   s): on changes to `web/chrome/`, `web/editor/` or the page.
 - **The navigation check** (`cargo run -p legible-win --example nav-guard`, a few seconds; a
