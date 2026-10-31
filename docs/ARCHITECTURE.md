@@ -683,11 +683,15 @@ since the process was created; "Performance", below, has the full record):
     written to. Files gone are found off the UI thread by one worker that takes only the newest
     list (never a queue, so a share that hangs can't pile them up); only a file certainly not
     found is dropped, never one that's only unreachable for now, and an answer about an older
-    list is ignored. The More menu shows them by name, rebuilt each time it opens, from
-    `LegibleChrome.setRecent({token, items})`; files of the same name show, faintly, as many of
-    their folders as tell them apart, and the full path is each one's tooltip. A pick sends
-    `open-recent` with the token and the index, and one from a list that has changed since
-    opens nothing.
+    list is ignored. **The toolbar's Open is a split button:** Open itself (`open`, Ctrl+O), and
+    an arrow (`.split-arrow`, named Recent files) whose menu shows them by name, rebuilt each
+    time it opens, from `LegibleChrome.setRecent({token, items})`, under Open from its left
+    edge; Down or Alt+Down on Open opens it too, and the menu's arrows, Home, End, Enter and Esc
+    work as the ⋯ menu's do. With none, it shows a greyed "No recent files". Files of the same
+    name show, faintly, as many of their folders as tell them apart, and the full path is each
+    one's tooltip. A pick sends `open-recent` with the token and the index, and opens the file
+    in the window as Open does (unsaved changes asked about first); one from a list that has
+    changed since opens nothing. The ⋯ menu doesn't list them.
   - **The Jump List** (`jumplist`): **Legible's own list, not Windows' automatic
     Recent**, so it works the same installed or portable. Each process takes the AppUserModelID `Surmise.Legible` before any window, and the recent files are published
     as its custom "Recent files" category (`ICustomDestinationList`), links to Legible's exe
@@ -854,9 +858,9 @@ since the process was created; "Performance", below, has the full record):
   - **One code path:** every item does what its toolbar button or shortcut does
     (`menu::Command::route`). Open, Save, Save as…, Save as PDF… and Close are the page's
     own messages to the window (`open`, `save`, `save-as`, `save-pdf`, `close`), which the
-    shell takes as if the page had sent them; a file in Open recent (the ⋯ menu's list: its
-    name, then its folder, shortened in the middle past 40 characters) is `open-recent` with
-    the list's token. Print, Find, Replace, Copy document,
+    shell takes as if the page had sent them; a file in Open recent (its name, then its folder,
+    shortened in the middle past 40 characters) is `open-recent` with the list's token, as a
+    pick from the toolbar's list is. Print, Find, Replace, Copy document,
     the modes, Outline, the zoom, the reading width, the theme, Settings and About call the
     page's own function for each (`LegibleChrome.command`). Find, as Ctrl+F, is the editor's in
     Edit, or in Split with the text focused, and the page's otherwise. Undo, Redo, Cut, Copy,

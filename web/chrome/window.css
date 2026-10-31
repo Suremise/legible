@@ -238,6 +238,34 @@ dialog.panel :is(input, select, a, pre):focus-visible {
   position: relative;
 }
 
+/* Open and its arrow (the recent files), one split button: two halves of one outline when
+   hovered, the list under it from its left. */
+.split-button {
+  display: inline-flex;
+}
+
+.split-button > .tool:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.split-button > .split-arrow {
+  min-width: 18px;
+  padding: 0 2px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.split-button > .split-arrow .icon {
+  width: 12px;
+  height: 12px;
+}
+
+.split-button .menu {
+  left: 0;
+  right: auto;
+}
+
 .menu {
   position: absolute;
   top: calc(100% + 4px);

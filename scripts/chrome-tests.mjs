@@ -1007,16 +1007,34 @@ await test("the answers to a held change are sent to the window", async () => {
   }
 });
 
-await test("recent files: the menu shows the newest list, and a pick names it by its token", async () => {
+await test("recent files: Open's arrow shows the newest list, from the pointer and the keyboard, and a pick names it by its token", async () => {
   await open("short");
   expect((await sent()).includes("recent"), "the page didn't ask for the recent files");
-  const more = `document.querySelector('[aria-label="More"]')`;
-  // Empty: a line saying so, which does nothing.
-  await evaluate(`${more}.click()`);
-  const empty = await evaluate(`[...document.querySelectorAll('.menu:not([hidden]) .menu-item')].map((m) => [m.textContent, m.getAttribute('aria-disabled')])`);
-  expect(empty[0][0] === "No recent files" && empty[0][1] === "true", `empty: ${JSON.stringify(empty)}`);
+  const arrow = `document.querySelector('#toolbar .split-arrow')`;
+  const openButton = `document.querySelector('#toolbar [aria-label="Open"]')`;
+  const shown = `[...document.querySelectorAll('.menu:not([hidden]) .menu-item')]`;
+  // Open and its arrow, one split button at the strip's start; the arrow names the list.
+  expect(
+    await evaluate(`${openButton}.parentElement === ${arrow}.parentElement && ${openButton}.nextElementSibling === ${arrow}
+      && ${arrow}.getAttribute('aria-label') === 'Recent files' && ${arrow}.getAttribute('aria-haspopup') === 'menu'`),
+    "Open and its arrow aren't one split button",
+  );
+  // Open itself still asks for the dialog.
+  await evaluate(`${openButton}.click()`);
+  expect((await sent()).at(-1) === "open", `Open sent ${JSON.stringify((await sent()).at(-1))}`);
+  // Empty: a greyed line saying so, which does nothing.
+  await evaluate(`${arrow}.click()`);
+  const empty = await evaluate(`${shown}.map((m) => [m.textContent, m.getAttribute('aria-disabled')])`);
+  expect(empty.length === 1 && empty[0][0] === "No recent files" && empty[0][1] === "true", `empty: ${JSON.stringify(empty)}`);
+  await evaluate(`${shown}[0].click()`);
+  expect(!(await sent()).some((m) => m.startsWith("open-recent")), "the empty line opened something");
   await key("Escape", { keyCode: 27 });
-  // A list arrives; the menu opened from the keyboard starts at its first file.
+  // The list, under Open from its left edge.
+  const under = await evaluate(`(() => { ${arrow}.click(); const m = document.querySelector('.menu:not([hidden])').getBoundingClientRect();
+    const o = ${openButton}.getBoundingClientRect(); return Math.abs(m.left - o.left) < 2 && m.top >= o.bottom; })()`);
+  expect(under, "the list isn't under Open");
+  await key("Escape", { keyCode: 27 });
+  // A list arrives; Down on Open opens it at its first file, the arrows move, Enter picks.
   const setRecent = (list) => evaluate(`LegibleChrome.setRecent(${JSON.stringify(list)})`);
   await setRecent({
     token: 7,
@@ -1025,25 +1043,31 @@ await test("recent files: the menu shows the newest list, and a pick names it by
       { name: "Notes ü.md", path: "C:\\Notes\\Notes ü.md" },
     ],
   });
-  await evaluate(`${more}.focus()`);
+  await evaluate(`${openButton}.focus()`);
   await key("ArrowDown", { keyCode: 40 });
   const focused = await evaluate("[document.activeElement.textContent, document.activeElement.title]");
   expect(focused[0] === "Plan.md" && focused[1] === "C:\\Notes\\Plan.md", `focused: ${focused}`);
-  expect(await evaluate("[...document.querySelectorAll('.menu:not([hidden]) .menu-heading')].some((h) => h.textContent === 'Recent files')"), "no heading");
   await key("ArrowDown", { keyCode: 40 });
   await key("Enter", { keyCode: 13 });
   expect((await sent()).includes("open-recent\n7\n1"), `sent: ${JSON.stringify(await sent())}`);
+  // Alt+Down opens it too, and Esc closes it, the focus back on the arrow.
+  await evaluate(`${openButton}.focus()`);
+  await cdp("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "ArrowDown", code: "ArrowDown", windowsVirtualKeyCode: 40, modifiers: 1 });
+  await cdp("Input.dispatchKeyEvent", { type: "keyUp", key: "ArrowDown", code: "ArrowDown", windowsVirtualKeyCode: 40, modifiers: 1 });
+  expect(await evaluate(`document.activeElement.textContent === "Plan.md"`), "Alt+Down didn't open the list");
+  await key("Escape", { keyCode: 27 });
+  expect(await evaluate(`${arrow}.getAttribute('aria-expanded') === 'false' && document.activeElement === ${arrow}`), "Esc didn't close the list");
   // A newer list replaces it, and picks name the new token.
   await setRecent({ token: 8, items: [{ name: "Other.md", path: "C:\\Other.md" }] });
-  await evaluate(`${more}.click()`);
-  await evaluate(`[...document.querySelectorAll('.menu-item')].find((m) => m.textContent === 'Other.md').click()`);
+  await evaluate(`${arrow}.click()`);
+  await evaluate(`${shown}.find((m) => m.textContent === 'Other.md').click()`);
   expect((await sent()).includes("open-recent\n8\n0"), "the new list's token");
   // A list that comes while the menu is open: a row still showing names the list it came from,
   // so the window refuses it rather than opening whatever is at that place now.
   await setRecent({ token: 20, items: [{ name: "Old.md", path: "C:\\Old.md" }] });
-  await evaluate(`${more}.click()`);
+  await evaluate(`${arrow}.click()`);
   await setRecent({ token: 21, items: [{ name: "Different.md", path: "C:\\Different.md" }] });
-  await evaluate(`[...document.querySelectorAll('.menu:not([hidden]) .menu-item')].find((m) => m.textContent === 'Old.md').click()`);
+  await evaluate(`${shown}.find((m) => m.textContent === 'Old.md').click()`);
   const picks = (await sent()).filter((m) => m.startsWith("open-recent"));
   expect(picks.at(-1) === "open-recent\n20\n0", `the open menu's pick: ${JSON.stringify(picks.at(-1))}`);
   // Files of the same name show as many of their folders as tell them apart; others show none.
@@ -1056,11 +1080,14 @@ await test("recent files: the menu shows the newest list, and a pick names it by
       { name: "README.md", path: "C:\\Old\\README.md" },
     ],
   });
-  await evaluate(`${more}.click()`);
-  const hints = await evaluate(
-    `[...document.querySelectorAll('.menu:not([hidden]) .menu-item')].slice(0, 4).map((m) => m.querySelector('.menu-hint')?.textContent ?? "")`,
-  );
+  await evaluate(`${arrow}.click()`);
+  const hints = await evaluate(`${shown}.slice(0, 4).map((m) => m.querySelector('.menu-hint')?.textContent ?? "")`);
   expect(JSON.stringify(hints) === JSON.stringify(["Work\\Handbook", "", "Home\\Handbook", "Old"]), `hints: ${JSON.stringify(hints)}`);
+  await key("Escape", { keyCode: 27 });
+  // The ⋯ menu has no recent files now.
+  await evaluate(`document.querySelector('[aria-label="More"]').click()`);
+  const more = await evaluate(`${shown}.map((m) => m.textContent)`);
+  expect(!more.some((t) => /README|Plan|recent/i.test(t)), `⋯ menu: ${JSON.stringify(more)}`);
   await key("Escape", { keyCode: 27 });
 });
 

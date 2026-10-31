@@ -157,11 +157,12 @@
 
   /** A button that opens a menu of `items` (or a function giving them, called each time it
       opens): { label, onselect, soon, checked(), title, hint } or "-", or { heading }. */
-  function menuButton(label, iconName, items, shortcut) {
+  function menuButton(label, iconName, items, shortcut, className) {
     const id = `menu-${Math.random().toString(36).slice(2)}`;
     const trigger = button(label, {
       iconName,
       shortcut,
+      className,
       attrs: { "aria-haspopup": "menu", "aria-expanded": "false", "aria-controls": id },
     });
     const menu = el("div", { role: "menu", id, className: "menu", "aria-label": label, hidden: true });
@@ -227,7 +228,7 @@
       if (openMenu === api) openMenu = null;
       if (returnFocus) trigger.focus();
     }
-    const api = { close, menu, trigger };
+    const api = { open, close, menu, trigger };
 
     trigger.addEventListener("click", () => (menu.hidden ? open() : close()));
     trigger.addEventListener("keydown", (event) => {
@@ -464,21 +465,28 @@
   const recentItems = () => {
     const { token, items } = recent;
     const hints = folderHints(items);
-    return [
-      { heading: s("recent") },
-      ...(items.length
-        ? items.map((item, i) => ({
-            label: item.name,
-            hint: hints[i],
-            title: item.path,
-            onselect: () => send(`open-recent\n${token}\n${i}`),
-          }))
-        : [{ label: s("recent-none"), disabled: true }]),
-      "-",
-    ];
+    return items.length
+      ? items.map((item, i) => ({
+          label: item.name,
+          hint: hints[i],
+          title: item.path,
+          onselect: () => send(`open-recent\n${token}\n${i}`),
+        }))
+      : [{ label: s("recent-none"), disabled: true }];
   };
+  // Open, a split button: the button opens Windows' Open dialog (Ctrl+O), and its arrow lists the
+  // recent files (File > Open recent's list), each a pick that opens it here as Open does, unsaved
+  // changes asked about first. Down or Alt+Down on Open opens the list too.
+  const openButton = button(s("open"), { iconName: "open", shortcut: keys("Ctrl", "O"), onclick: () => send("open") });
+  const recentMenu = menuButton(s("recent"), "down", recentItems, undefined, "split-arrow");
+  recentMenu.wrap.classList.add("split-button");
+  recentMenu.wrap.prepend(openButton);
+  openButton.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowDown" || event.ctrlKey || event.shiftKey || event.metaKey) return;
+    event.preventDefault();
+    recentMenu.open();
+  });
   const more = menuButton(s("more"), "more", () => [
-    ...recentItems(),
     { label: s("save-pdf"), disabled: noDocument, onselect: () => send("save-pdf") },
     // A window with no document has no file to open elsewhere or show (page::empty_page).
     { label: s("open-editor"), disabled: noDocument, onselect: () => send("open-editor") },
@@ -494,7 +502,7 @@
     el(
       "div",
       { className: "group" },
-      button(s("open"), { iconName: "open", shortcut: keys("Ctrl", "O"), onclick: () => send("open") }),
+      recentMenu.wrap,
       el("div", { className: "segmented", role: "group", "aria-label": s("mode") }, ...modeButtons),
       unsaved,
       saveButton,
