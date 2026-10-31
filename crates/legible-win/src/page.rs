@@ -120,7 +120,7 @@ pub fn page(lang: &str, title: &str, document: &str, settings: &Settings) -> Str
 /// The page as [`page`] makes it, its document being render `generation`, its CSP letting
 /// pictures load from `picture_origins` (the consented pictures' origins, [`csp`]), and the
 /// editor told whether the file may be edited where it is (`editable`: otherwise Split and Edit
-/// offer "Save a copy…").
+/// offer "Save as…").
 pub fn document_page(
     lang: &str,
     title: &str,
@@ -312,6 +312,10 @@ pub fn chrome_strings() -> String {
         "open-file",
         "unsaved",
         "mode-not-editable",
+        "save",
+        "save-as",
+        "save-nothing",
+        "save-not-editable",
         "status-copy-path",
         "status-path-copied",
         "status-label",

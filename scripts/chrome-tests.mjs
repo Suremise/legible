@@ -305,6 +305,13 @@ async function key(keyName, { code = keyName, keyCode = 0, ctrl = false, shift =
   await cdp("Input.dispatchKeyEvent", { type: "keyUp", ...base });
 }
 
+/** Enter, typed as a key that makes text: a focused button is pressed by it. */
+async function enter() {
+  const base = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 };
+  await cdp("Input.dispatchKeyEvent", { type: "keyDown", text: "\r", ...base });
+  await cdp("Input.dispatchKeyEvent", { type: "keyUp", ...base });
+}
+
 // The stand-in window's state for the editor (pump, below).
 let handled = 0;
 let hold = false;
@@ -1978,7 +1985,7 @@ await test("unsaved: the window has the text before it hears the text is unsaved
   expect((await heard()).join("|") === `text:${undone}|dirty\ntrue`, `a save over an undo: ${JSON.stringify(await heard())}`);
 });
 
-await test("Ctrl+S saves and Ctrl+Shift+S saves a copy, in any mode", async () => {
+await test("Ctrl+S saves and Ctrl+Shift+S saves as, in any mode", async () => {
   await open("short");
   await key("s", { code: "KeyS", keyCode: 83, ctrl: true });
   await toMode("edit");
@@ -1986,9 +1993,53 @@ await test("Ctrl+S saves and Ctrl+Shift+S saves a copy, in any mode", async () =
   await type("x");
   await key("s", { code: "KeyS", keyCode: 83, ctrl: true });
   await key("S", { code: "KeyS", keyCode: 83, ctrl: true, shift: true });
-  const asked = (await sent()).filter((m) => m === "save" || m === "save-copy");
-  expect(asked.join() === "save,save,save-copy", `sent: ${asked}`);
+  const asked = (await sent()).filter((m) => m === "save" || m === "save-as");
+  expect(asked.join() === "save,save,save-as", `sent: ${asked}`);
   expect((await text()).startsWith("x# A"), "the keys typed into the text");
+});
+
+await test("Save and Save as on the strip: beside the unsaved dot, Save usable only while something is unsaved, both from the keyboard", async () => {
+  await open("short");
+  const tools = () => evaluate(`[...document.querySelectorAll("#toolbar button.tool")].map((b) => b.getAttribute("aria-label"))`);
+  const order = await tools();
+  const at = order.indexOf("Edit");
+  expect(order.slice(at, at + 3).join() === "Edit,Save,Save as", `the strip: ${order}`);
+  expect(
+    await evaluate(`(() => { const dot = document.querySelector("#toolbar .unsaved");
+      return dot.nextElementSibling === document.querySelector('#toolbar [data-command="save"]'); })()`),
+    "Save isn't beside the unsaved dot",
+  );
+  const save = `document.querySelector('#toolbar [data-command="save"]')`;
+  const saveAs = `document.querySelector('#toolbar [data-command="save-as"]')`;
+  const state = () => evaluate(`[${save}.getAttribute("aria-disabled"), ${save}.title, ${saveAs}.getAttribute("aria-disabled"), ${saveAs}.title]`);
+  // Nothing unsaved: Save greyed out, saying so; clicked, nothing.
+  let [disabled, tip, asDisabled, asTip] = await state();
+  expect(disabled === "true" && tip === "Save: nothing to save", `Save: ${disabled} ${tip}`);
+  expect(asDisabled === null && asTip === "Save as (Ctrl+Shift+S)", `Save as: ${asDisabled} ${asTip}`);
+  await evaluate("window.sent.length = 0");
+  await evaluate(`${save}.click()`);
+  expect(!(await sent()).includes("save"), "a greyed-out Save saved");
+  // Edited: Save is usable, with its shortcut, until the edit is saved.
+  await toMode("split");
+  await select(0);
+  await type("x");
+  await until("Save to be usable", async () => (await state())[0] === null);
+  expect((await state())[1] === "Save (Ctrl+S)", `Save: ${(await state())[1]}`);
+  // From the keyboard: in the tab order, and the strip's arrows reach both; Enter presses each.
+  await evaluate(`${save}.focus()`);
+  await enter();
+  await key("ArrowRight", { keyCode: 39 });
+  expect(await evaluate(`document.activeElement === ${saveAs}`), "the arrow key didn't reach Save as");
+  await enter();
+  const asked = (await sent()).filter((m) => m === "save" || m === "save-as");
+  expect(asked.join() === "save,save-as", `sent: ${asked}`);
+  expect(await evaluate(`${save}.tabIndex === 0 && ${saveAs}.tabIndex === 0`), "not in the tab order");
+  await evaluate(`LegibleEditor.view().dispatch({ changes: { from: 0, to: 1 } })`);
+  await until("Save greyed out again once nothing is unsaved", async () => (await state())[0] === "true");
+  // The empty window: both greyed out.
+  await open("empty");
+  [disabled, tip, asDisabled] = await state();
+  expect(disabled === "true" && tip === "Save: nothing to save" && asDisabled === "true", `empty: ${await state()}`);
 });
 
 // The conflict bar's buttons, by their text.
@@ -2192,22 +2243,30 @@ await test("a close's save freezes the text: no edit lands between saving and th
   expect(await evaluate("LegibleEditor.isFrozen() && !LegibleEditor.isDirty()"), "not frozen and clean");
 });
 
-await test("a file that can't be edited where it is: Split and Edit unusable, Ctrl+Shift+S saves a copy, Ctrl+E nothing", async () => {
+await test("a file that can't be edited where it is: Split, Edit and Save unusable, Ctrl+Shift+S saves as, Ctrl+E nothing", async () => {
   await open("notes-read-only");
   const buttons = await evaluate(`[...document.querySelectorAll(".segmented button")]
     .filter((b) => !b.hidden).map((b) => [b.getAttribute("aria-label"), b.getAttribute("aria-disabled") === "true", b.title])`);
-  // Only the modes: Save a copy… is File's (and Ctrl+Shift+S).
+  // Only the modes: Save and Save as are beside them.
   expect(buttons.map(([name]) => name).join() === "View,Split,Edit", `buttons: ${JSON.stringify(buttons)}`);
   expect(!buttons[0][1] && buttons[1][1] && buttons[2][1], `disabled: ${JSON.stringify(buttons)}`);
   expect(buttons[0][2] === "View (Ctrl+E cycles)", buttons[0][2]);
-  expect(buttons[1][2].startsWith("Split: this file can't be edited") && buttons[1][2].includes("Ctrl+Shift+S"), buttons[1][2]);
+  expect(buttons[1][2].startsWith("Split: this file can't be edited") && buttons[1][2].includes("Save as (Ctrl+Shift+S)"), buttons[1][2]);
   expect(buttons[2][2].startsWith("Edit: this file can't be edited"), buttons[2][2]);
   await evaluate(`document.querySelector('.segmented [aria-label="Split"]').click()`);
   await ctrlKey("e", "KeyE", 69);
   await key("S", { code: "KeyS", keyCode: 83, ctrl: true, shift: true });
   await pump();
   const messages = await sent();
-  expect(messages.includes("save-copy") && !messages.includes("source"), `sent: ${messages}`);
+  expect(messages.includes("save-as") && !messages.includes("source"), `sent: ${messages}`);
+  // Save greyed out, saying why; Save as there to use.
+  const save = await evaluate(`(() => { const b = document.querySelector('#toolbar [data-command="save"]');
+    return [b.getAttribute("aria-disabled"), b.title]; })()`);
+  expect(save[0] === "true" && save[1] === "Save: this file can't be saved where it is. Use Save as to save it somewhere else.", `Save: ${save}`);
+  await evaluate("window.sent.length = 0");
+  await evaluate(`document.querySelector('#toolbar [data-command="save"]').click()`);
+  await evaluate(`document.querySelector('#toolbar [data-command="save-as"]').click()`);
+  expect((await sent()).join() === "save-as", `sent: ${await sent()}`);
   expect(await evaluate(`LegibleEditor.mode() === "view"`), "left View");
 });
 

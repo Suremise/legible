@@ -97,7 +97,8 @@ signing out, which keeps a copy to offer back next time.
 If the file changes on disk while you have unsaved changes (a colleague on a shared drive, a sync,
 another app), Legible doesn't overwrite either: it asks whether to keep your changes or use the
 file, and can show both side by side first. A file you can't change where it is, such as an email
-attachment, opens for reading; **Save a copy…** (Ctrl+Shift+S) saves it somewhere you can edit it.
+attachment, opens for reading; **Save as** (Ctrl+Shift+S) saves it somewhere you can edit it, and
+the window carries on with the new file.
 
 ## Privacy
 

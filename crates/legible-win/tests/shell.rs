@@ -10,8 +10,8 @@
 //! pictures answer straight away; a reload that waited for a save; Use the other version for a
 //! raced save (the code's "take theirs": completed, raced by a third writer, and written over
 //! before it's taken up); Keep my changes over a change a save found; a close during a save;
-//! Save a copy over a destination that changes once it's chosen; and Open, Open recent and a drop
-//! replacing a window's document (unsaved changes asked about as a close asks them), while a
+//! Save as, moving the window to the new file (and over a destination that changes once it's
+//! chosen); and Open, Open recent and a drop replacing a window's document (unsaved changes asked about as a close asks them), while a
 //! launch opens a window of its own.
 //!
 //! The documents are in the temp folder, where Legible won't edit a file (an attachment opens
@@ -91,8 +91,20 @@ const CASES: &[(&str, Case)] = &[
         close_during_a_save,
     ),
     (
-        "Save a copy over a destination that changes once chosen: left alone, and said",
-        copy_over_a_changed_destination,
+        "Save as over a destination that changes once chosen: left alone, said, and the window stays as it was",
+        save_as_over_a_changed_destination,
+    ),
+    (
+        "Save as moves the window to the new file: its title, recent files and live reload, the edits saved there and the old file left as it was",
+        save_as_moves_the_window,
+    ),
+    (
+        "Save as from a file that can't be saved where it is (Ctrl+S offers it): the new file can be edited",
+        save_as_makes_a_read_only_file_editable,
+    ),
+    (
+        "Open and a close during Save as: Open refused, the close waits (nothing asked, the page frozen, no late edit lost), then it closes",
+        close_waits_for_save_as,
     ),
     (
         "the status bar: the file's path, encoding and line endings (as a save leaves them), and Copy path copies the file's own path",
@@ -171,7 +183,7 @@ const CASES: &[(&str, Case)] = &[
         read_once_the_window_is_made,
     ),
     (
-        "a window still reading its file: only Open, Close and Exit of its file's commands, and Save a copy asks nothing till it's read",
+        "a window still reading its file: only Open, Close and Exit of its file's commands, and Save as asks nothing till it's read",
         commands_wait_for_the_file,
     ),
     (
@@ -223,7 +235,7 @@ const CHILD: &str = "LEGIBLE_SHELL_TEST_RUN";
 const RUN_BOUND: Duration = Duration::from_secs(240);
 
 #[test]
-fn the_real_window_saves_copies_takes_theirs_and_closes() {
+fn the_real_window_saves_as_takes_theirs_and_closes() {
     let folders = Folders::new();
     let me = std::env::current_exe().expect("this test's exe");
     let mut child = Command::new(me)
@@ -695,7 +707,7 @@ fn close_during_a_save(d: &Driver, docs: &Path) -> Result<()> {
     Ok(())
 }
 
-fn copy_over_a_changed_destination(d: &Driver, docs: &Path) -> Result<()> {
+fn save_as_over_a_changed_destination(d: &Driver, docs: &Path) -> Result<()> {
     const SOURCE: &[u8] = b"# Source\n\nText.\n";
     const CHANGED: &[u8] = b"Changed by another program.\n";
     let file = document(docs, "copying", SOURCE)?;
@@ -705,32 +717,214 @@ fn copy_over_a_changed_destination(d: &Driver, docs: &Path) -> Result<()> {
     type_at_start(d, w, "Edited. ")?;
     d.until(w, "the edit", "LegibleEditor.isDirty()")?;
     // The dialog chooses the destination (as it was then); it changes before it's written.
-    d.copy_to(&destination);
+    d.save_as_to(&destination);
     let at = destination.clone();
-    d.at(Write::Copy, Moment::Staged, move || {
+    d.at(Write::SaveAs, Moment::Staged, move || {
         let _ = fs::write(&at, CHANGED);
     });
     press(d, w, "S", true)?;
     d.until(
         w,
-        "the window to say the copy wasn't saved",
+        "the window to say the file wasn't saved",
         &format!(
             "!document.getElementById('notice').hidden \
              && document.getElementById('notice').textContent.includes({})",
-            json_string(&tr("chrome-save-copy-changed"))
+            json_string(&tr("chrome-save-as-changed"))
         ),
     )?;
     if fs::read(&destination).map_err(|e| e.to_string())? != CHANGED {
         return Err("the changed destination was written over".into());
     }
     if d.window_of(&destination)?.is_some() {
-        return Err("a copy that wasn't saved opened".into());
+        return Err("a file that wasn't saved opened".into());
     }
     if fs::read(&file).map_err(|e| e.to_string())? != SOURCE {
-        return Err("Save a copy wrote the document".into());
+        return Err("Save as wrote the document".into());
     }
-    d.until(w, "the text still unsaved", "LegibleEditor.isDirty()")?;
+    if d.file_of(w)? != Some(canonical(&file)?) {
+        return Err(format!("the window moved to {:?}", d.file_of(w)?));
+    }
+    d.until(
+        w,
+        "the text still unsaved, and taking edits again",
+        "LegibleEditor.isDirty() && !LegibleEditor.isFrozen()",
+    )?;
     close_dirty(d, w)
+}
+
+fn save_as_moves_the_window(d: &Driver, docs: &Path) -> Result<()> {
+    const SOURCE: &[u8] = b"# Draft\n\nText.\n";
+    let file = document(docs, "draft", SOURCE)?;
+    let new = file.with_file_name("final.md");
+    let w = open_editing(d, &file)?;
+    edited(d, w, "Edited. ")?;
+    let (windows, asked) = (d.windows()?, d.questions());
+    d.save_as_to(&new);
+    press(d, w, "S", true)?;
+    let canonical = canonical_when_there(d, &new)?;
+    d.until_true("the window to show the new file", || {
+        Ok(d.file_of(w)? == Some(canonical.clone()))
+    })?;
+    file_is(d, &new, b"Edited. # Draft\n\nText.\n")?;
+    // In Split still, the edits saved: nothing unsaved, nothing asked, no other window.
+    d.until(
+        w,
+        "the new file's page, in Split, nothing unsaved",
+        &format!(
+            "{} && LegibleEditor.mode() === 'split' && !LegibleEditor.isDirty() \
+             && {TEXT}.startsWith('Edited. ')",
+            shows("Draft")
+        ),
+    )?;
+    if d.windows()? != windows || d.questions() != asked {
+        return Err("another window opened, or Save as asked about unsaved changes".into());
+    }
+    if fs::read(&file).map_err(|e| e.to_string())? != SOURCE {
+        return Err("the old file changed".into());
+    }
+    if d.window_of(&file)?.is_some() {
+        return Err("the old file still has a window".into());
+    }
+    if d.title(w)?.as_deref() != Some("final.md – Legible") {
+        return Err(format!("the title is {:?}", d.title(w)?));
+    }
+    if d.recent()?.first() != Some(&canonical) {
+        return Err("the new file isn't the newest recent file".into());
+    }
+    stamp_is_the_files(d, w, &new)?;
+    // Live reload watches the new file, and the old one no more.
+    fs::write(&file, b"# Old file changed\n").map_err(|e| e.to_string())?;
+    fs::write(&new, b"# Final changed\n").map_err(|e| e.to_string())?;
+    d.until(w, "the new file's change", &shows("Final changed"))?;
+    if d.eval(w, &shows("Old file changed"))?.as_deref() != Some("false") {
+        return Err("the old file's change is shown".into());
+    }
+    close_clean(d, w)
+}
+
+fn save_as_makes_a_read_only_file_editable(d: &Driver, docs: &Path) -> Result<()> {
+    const SOURCE: &[u8] = b"# Attachment\n\nText.\n";
+    let file = document(docs, "attachment", SOURCE)?;
+    let _writable = ReadOnly::set(&file)?;
+    let new = file.with_file_name("mine.md");
+    let w = d.open(&file)?;
+    let split = "document.querySelector('#toolbar [data-mode=split]')";
+    let save = "document.querySelector('#toolbar [data-command=save]')";
+    d.until(
+        w,
+        "the page, Split and Save unusable",
+        &format!(
+            "!!window.LegibleChrome?.ready && {split}.getAttribute('aria-disabled') === 'true' \
+             && {save}.getAttribute('aria-disabled') === 'true'"
+        ),
+    )?;
+    // Ctrl+S on a file that can't be saved where it is: Save as.
+    d.save_as_to(&new);
+    press(d, w, "S", false)?;
+    let canonical = canonical_when_there(d, &new)?;
+    d.until_true("the window to show the new file", || {
+        Ok(d.file_of(w)? == Some(canonical.clone()))
+    })?;
+    file_is(d, &new, SOURCE)?;
+    d.until(
+        w,
+        "the new file's page, Split usable",
+        &format!(
+            "!!window.LegibleChrome?.ready && {} && !{split}.hasAttribute('aria-disabled')",
+            shows("Attachment")
+        ),
+    )?;
+    let offered = d.offered(w)?;
+    if !offered.contains(&menu::Command::Mode(Mode::Split)) {
+        return Err("the new file can't be edited".into());
+    }
+    close_clean(d, w)
+}
+
+fn close_waits_for_save_as(d: &Driver, docs: &Path) -> Result<()> {
+    let file = document(docs, "closing-save-as", b"# Original\n")?;
+    let new = file.with_file_name("new.md");
+    let other = document(docs, "opened-during-save-as", b"# Other\n")?;
+    let w = open_editing(d, &file)?;
+    edited(d, w, "Saved. ")?;
+    // Save as's write, held once it's staged till the test lets it go on.
+    let (staged, is_staged) = mpsc::channel::<()>();
+    let (release, released) = mpsc::channel::<()>();
+    d.at(Write::SaveAs, Moment::Staged, move || {
+        let _ = staged.send(());
+        let _ = released.recv_timeout(BOUND);
+    });
+    d.save_as_to(&new);
+    press(d, w, "S", true)?;
+    is_staged
+        .recv_timeout(BOUND)
+        .map_err(|_| "Save as's write never started".to_owned())?;
+    d.until(w, "the page frozen for Save as", "LegibleEditor.isFrozen()")?;
+    // Open meanwhile: refused, the window staying on its file till Save as moves it.
+    let asked = d.questions();
+    d.open_here(w, &other)?;
+    if d.questions() != asked || d.file_of(w)? != Some(canonical(&file)?) {
+        return Err("Open went ahead during Save as".into());
+    }
+    if d.window_of(&other)?.is_some() {
+        return Err("the file opened during Save as".into());
+    }
+    // Closed meanwhile: it waits, asking nothing (Cancel would have unfrozen the page).
+    d.close(w)?;
+    if d.questions() != asked {
+        return Err("the close asked while Save as was being written".into());
+    }
+    d.eval(
+        w,
+        "LegibleEditor.view().dispatch({ changes: { from: 0, insert: 'Late. ' } })",
+    )?;
+    d.until(
+        w,
+        "the page still frozen, the late edit kept out",
+        &format!("LegibleEditor.isFrozen() && !{TEXT}.startsWith('Late. ')"),
+    )?;
+    if !d.is_open(w)? {
+        return Err("the window closed before Save as was over".into());
+    }
+    // Written: the window moves to the new file, and the close goes on, asking nothing.
+    let _ = release.send(());
+    file_is(d, &new, b"Saved. # Original\n")?;
+    d.until_true("the window to close", || Ok(!d.is_open(w)?))?;
+    if d.questions() != asked {
+        return Err("the close asked once Save as was over".into());
+    }
+    file_is(d, &file, b"# Original\n")
+}
+
+/// `file`'s read-only attribute, set till this is dropped (a folder with a read-only file in it
+/// can't be removed).
+struct ReadOnly(PathBuf);
+
+impl ReadOnly {
+    fn set(file: &Path) -> Result<ReadOnly> {
+        set_read_only(file, true)?;
+        Ok(ReadOnly(file.to_owned()))
+    }
+}
+
+impl Drop for ReadOnly {
+    fn drop(&mut self) {
+        let _ = set_read_only(&self.0, false);
+    }
+}
+
+fn set_read_only(file: &Path, read_only: bool) -> Result<()> {
+    let mut permissions = fs::metadata(file).map_err(|e| e.to_string())?.permissions();
+    permissions.set_readonly(read_only);
+    fs::set_permissions(file, permissions).map_err(|e| e.to_string())
+}
+
+/// `file`, canonical, once it's there.
+fn canonical_when_there(d: &Driver, file: &Path) -> Result<PathBuf> {
+    d.until_true(&format!("{} to be written", file.display()), || {
+        Ok(file.exists())
+    })?;
+    canonical(file)
 }
 
 fn sign_out_stops_and_asks(d: &Driver, docs: &Path) -> Result<()> {
@@ -999,7 +1193,7 @@ fn kept_elsewhere(d: &Driver, docs: &Path) -> Result<()> {
     keep_copy(docs, &gone, b"# Gone\n", "Mine. # Gone\n")?;
     let asked = d.questions();
     d.answer(SaveAnswer::Save);
-    d.copy_to(&rescued);
+    d.save_as_to(&rescued);
     d.offer_kept()?;
     if d.questions() != asked + 1 {
         return Err("a copy of a file that has gone didn't ask".into());
@@ -1421,7 +1615,7 @@ fn commands_wait_for_the_file(d: &Driver, docs: &Path) -> Result<()> {
 Text.
 ";
     const NEED_IT: [menu::Command; 6] = [
-        menu::Command::SaveCopy,
+        menu::Command::SaveAs,
         menu::Command::SavePdf,
         menu::Command::Print,
         menu::Command::CopyDocument,
@@ -1449,25 +1643,27 @@ Text.
     if let Some(command) = NEED_IT.iter().find(|c| offered.contains(c)) {
         return Err(format!("{command:?} is offered before the file is read"));
     }
-    // Save a copy asked for anyway shows no dialog: the destination is the next one's. The
+    // Save as asked for anyway shows no dialog: the destination is the next one's. The
     // window hears it before its file, in the order they're sent.
-    d.copy_to(&destination);
-    d.release(w, "save-copy".into())?;
+    d.save_as_to(&destination);
+    d.release(w, "save-as".into())?;
     d.finish_opening()?;
     d.until(w, "the page to start", "!!window.LegibleChrome?.ready")?;
     let offered = d.offered(w)?;
     if let Some(command) = NEED_IT.iter().find(|c| !offered.contains(c)) {
         return Err(format!("{command:?} isn't offered once the file is read"));
     }
-    d.release(w, "save-copy".into())?;
-    d.until_true("the copy's window", || {
-        Ok(d.window_of(&destination)?.is_some())
+    d.release(w, "save-as".into())?;
+    // The window moves to the new file: no window of its own.
+    let windows = d.windows()?;
+    d.until_true("the window to show the new file", || {
+        Ok(d.window_of(&destination)? == Some(w))
     })?;
     if fs::read(&destination).map_err(|e| e.to_string())? != SOURCE {
-        return Err("the copy isn't the file".into());
+        return Err("the new file isn't the file".into());
     }
-    if let Some(copy) = d.window_of(&destination)? {
-        close_clean(d, copy)?;
+    if d.windows()? != windows {
+        return Err("Save as opened a window".into());
     }
     close_clean(d, w)
 }

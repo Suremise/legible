@@ -127,7 +127,11 @@ impl Shell {
             };
             let step = exit.step(|w| match windows.get(&w) {
                 None => Standing::Closed,
-                Some(doc) if doc.saves.closing() || doc.close_after_take => Standing::Closing,
+                Some(doc)
+                    if doc.saves.closing() || doc.close_after_take || doc.close_after_save_as =>
+                {
+                    Standing::Closing
+                }
                 Some(_) => Standing::Open,
             });
             match step {

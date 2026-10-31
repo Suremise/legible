@@ -153,7 +153,7 @@ chrome-pictures-off-failed = Legible stopped showing pictures from the internet 
 # reloads the page, which waits until the changes are saved.
 chrome-pictures-save-first = Save your changes to show pictures from the internet.
 # A file in an encoding Legible doesn't edit (not UTF-8 or UTF-16): shown, but not editable.
-chrome-encoding-unsupported = This file isn't saved as UTF-8 or UTF-16, so Legible shows it but can't edit it. Save a copy… keeps it exactly as it is.
+chrome-encoding-unsupported = This file isn't saved as UTF-8 or UTF-16, so Legible shows it but can't edit it. Save as… keeps it exactly as it is, in a new file.
 # The file mixes line endings; saving writes every line with the one it uses most.
 chrome-line-endings-mixed = This file mixes line endings. Saving it uses { $ending ->
         [crlf] Windows line endings (CRLF)
@@ -161,7 +161,7 @@ chrome-line-endings-mixed = This file mixes line endings. Saving it uses { $endi
        *[lf] Unix line endings (LF)
     } for every line.
 
-# Saving: the conflict bar, a save that failed, Save a copy and closing.
+# Saving: the conflict bar, a save that failed, Save as and closing.
 
 # The conflict bar: the file changed on disk while there are unsaved changes. There's one file,
 # and two versions of its text: your changes (in Legible, unsaved) and the file (as it is on
@@ -203,13 +203,15 @@ chrome-conflict-raced-again = { $file } changed again, so nothing was replaced o
 chrome-conflict-raced-take-failed = The other version couldn't be put back ({ $reason }). It's still in the copy "{ $name }".
 chrome-save-file-failed = { $name } couldn't be saved ({ $reason }). Your changes are still here.
 chrome-save-partial = Saving { $name } didn't finish, and nothing is lost: the file as it was is at { $original }, and your version at { $saved }.
-chrome-save-copy-title = Save a copy
-chrome-save-copy-filter = Markdown
-# The name a copy starts with; { $name } is the file's, without its extension.
-chrome-save-copy-name = { $name } (copy)
-chrome-save-copy-same = A copy can't replace the file it's a copy of. Choose another name.
-chrome-save-copy-changed = That file changed while the copy was being saved, so it wasn't replaced. Try again.
-chrome-save-copy-failed = The copy couldn't be saved ({ $reason }).
+# Save as: the text saved as a new file, which the window then shows in place of the old one.
+chrome-save-as-title = Save as
+chrome-save-as-filter = Markdown
+# Save as chose the file itself, which can't be saved where it is (an attachment, say).
+chrome-save-as-same = This file can't be saved where it is. Choose another folder or name.
+# Save as chose a file that's open in another Legible window. { $name } is its name.
+chrome-save-as-open = { $name } is open in another window. Close it there first, or choose another name.
+chrome-save-as-changed = That file changed while it was being saved, so it wasn't replaced. Try again.
+chrome-save-as-failed = The file couldn't be saved ({ $reason }). Your changes are still here.
 # Closing a window with unsaved changes.
 save-close-question = Save your changes to { $name }?
 save-close-detail = If you don't save, your changes will be lost.
@@ -274,7 +276,13 @@ installer-app-description = Reads Markdown files: notes, reports and documentati
 chrome-unsaved = Unsaved changes
 # After Split's or Edit's name, on a file that can't be changed where it is (read-only, or an
 # email's attachment): saving it elsewhere is how to edit it.
-chrome-mode-not-editable = this file can't be edited where it is. To edit it, save a copy (File, Save a copy…, or Ctrl+Shift+S).
+chrome-mode-not-editable = this file can't be edited where it is. To edit it, save it somewhere else with Save as (Ctrl+Shift+S).
+# The toolbar's Save and Save as, beside the modes. Save is greyed out, its tooltip saying why
+# after its name, while there's nothing unsaved, or on a file that can't be saved where it is.
+chrome-save = Save
+chrome-save-as = Save as
+chrome-save-nothing = nothing to save
+chrome-save-not-editable = this file can't be saved where it is. Use Save as to save it somewhere else.
 chrome-editor = Markdown text
 chrome-editor-resize = Resize the text and the document
 chrome-settings-editor-font = Editor font
@@ -318,7 +326,7 @@ menu-help = &Help
 menu-open = &Open…
 menu-recent = Open &recent
 menu-save = &Save
-menu-save-copy = Save a &copy…
+menu-save-as = Save &as…
 menu-save-pdf = Save as P&DF…
 menu-print = &Print…
 menu-close = C&lose

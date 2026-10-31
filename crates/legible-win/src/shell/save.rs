@@ -1,4 +1,4 @@
-//! A window's saving, carried out: Save, Save a copy, closing with unsaved edits, and the
+//! A window's saving, carried out: Save, Save as, closing with unsaved edits, and the
 //! conflict bar's answers. [`crate::saving::Session`] decides what to write and whether the
 //! window may close; `legible_core::save` writes, off the UI thread.
 //!
@@ -15,9 +15,12 @@
 //! it back only while the file is still the save's ([`crate::recovery`] does the file work),
 //! with the page frozen from its confirmation until the take is over.
 //!
-//! **Save a copy** writes the editor's text, or the file's bytes, to a file chosen in the Save
-//! dialog, over exactly what was there when it was chosen (never the file itself), and opens
-//! it; the window's own text stays as saved or unsaved as it was.
+//! **Save as** writes the editor's text, or the file's bytes, to a file chosen in the Save
+//! dialog, over exactly what was there when it was chosen (never the file itself), and the
+//! window then shows that file in place of its own, as Open does ([`Shell::replace`]): its
+//! title, live reload, recent files and whether it can be edited are the new file's. The page
+//! is frozen from the moment its text is asked for, so nothing typed meanwhile is left behind;
+//! if the write fails it takes edits again, its text as it was.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -26,14 +29,13 @@ use std::thread;
 use legible_core::render::render;
 use legible_core::save::{self, Conflict, NoHooks, Stamp, TextFormat, WriteError};
 use legible_core::{i18n::tr, tr};
-use tao::event_loop::EventLoopWindowTarget;
 use tao::platform::windows::WindowExtWindows;
 use tao::window::WindowId;
 
 use super::{Moments, OnDisk, Shell, UserEvent, Write, pictures};
 use crate::consent::Next;
 use crate::disk::{Content, Disk};
-use crate::editor::RaceAnswer;
+use crate::editor::{self, RaceAnswer};
 use crate::page;
 use crate::reason;
 use crate::recovery;
@@ -46,11 +48,11 @@ use crate::win32::{self, dialogs};
 /// What the editor's contents were asked for.
 pub(super) enum Wanted {
     Save,
-    Copy(Copy),
+    SaveAs(NewFile),
 }
 
-/// A copy to write: where, and what was there when the Save dialog approved it.
-pub(super) struct Copy {
+/// Save as's file: where, and what was there when the Save dialog approved it.
+pub(super) struct NewFile {
     path: PathBuf,
     approved: Option<Stamp>,
 }
@@ -76,7 +78,7 @@ pub(super) struct Race {
 }
 
 impl Shell {
-    /// Ctrl+S. A file that can't be saved where it is offers a copy instead; a window whose
+    /// Ctrl+S. A file that can't be saved where it is offers Save as instead; a window whose
     /// editor hasn't opened has nothing to save.
     pub(super) fn save(&mut self, id: WindowId) {
         let Some(doc) = self.windows.get(&id) else {
@@ -86,7 +88,7 @@ impl Shell {
             return;
         }
         if !doc.editable {
-            return self.save_copy(id);
+            return self.save_as(id);
         }
         if doc.editor_open {
             self.ask_contents(id, Wanted::Save);
@@ -118,12 +120,13 @@ impl Shell {
                     self.write(id, save);
                 }
             }
-            Some(Wanted::Copy(copy)) => {
+            Some(Wanted::SaveAs(new_file)) => {
                 let format = doc.disk.as_ref().and_then(|d| d.content.format()).copied();
-                // A copy leaves the text as saved or unsaved as it was.
+                // This file's text stays as saved or unsaved as it was: the new file is another.
                 self.abandoned(id, version);
-                if let Some(format) = format {
-                    self.write_copy(id, copy, save::encode(text, &format));
+                match format {
+                    Some(format) => self.write_new(id, new_file, save::encode(text, &format)),
+                    None => self.not_saved_as(id, None),
                 }
             }
             None => tracing::debug!(request, "contents nobody asked for"),
@@ -632,122 +635,209 @@ impl Shell {
         self.announce(id, "raced", race.id, Some(&text));
     }
 
-    // --- Save a copy ---------------------------------------------------------------------------
+    // --- Save as -------------------------------------------------------------------------------
 
-    /// Save a copy… (Ctrl+Shift+S): the Save dialog, in Documents, then the editor's text, or
-    /// the file as it is, to the file chosen, over exactly what was there when it was chosen;
-    /// never the file itself.
-    pub(super) fn save_copy(&mut self, id: WindowId) {
-        // A window still reading its file has nothing yet to copy: no dialog.
-        let Some(doc) = self.windows.get(&id).filter(|d| d.opening.is_none()) else {
+    /// Save as… (Ctrl+Shift+S, the toolbar's Save as, or Ctrl+S on a file that can't be saved
+    /// where it is): the Save dialog, then the editor's text, or the file as it is, to the file
+    /// chosen, over exactly what was there when it was chosen; then the window shows that file
+    /// ([`Shell::saved_as`]). Choosing the file itself is Save, where it can be saved; never a
+    /// file open in another window.
+    pub(super) fn save_as(&mut self, id: WindowId) {
+        let busy = self.closing.contains_key(&id);
+        // A window still reading its file has nothing yet to save: no dialog. Nor does one
+        // that's closing, replacing its document, taking a raced save's other version, or
+        // saving as already.
+        let Some(doc) = self.windows.get(&id).filter(|d| {
+            d.opening.is_none()
+                && !busy
+                && d.replacing.is_none()
+                && !d.saves.closing()
+                && !d.saving_as
+                && !d.race.as_ref().is_some_and(|r| r.taking)
+        }) else {
             return;
         };
         let Some(file) = doc.file.clone() else {
             return;
         };
-        let Some(chosen) = self.copy_dialog(doc.window.hwnd(), &file) else {
+        let Some(chosen) = self.save_as_dialog(doc.window.hwnd(), &file) else {
             return;
         };
         if recovery::same_file(&chosen, &file) {
-            return self.notice(id, &tr("chrome-save-copy-same"));
+            if self.windows.get(&id).is_some_and(|d| d.editable) {
+                return self.save(id);
+            }
+            return self.notice(id, &tr("chrome-save-as-same"));
+        }
+        if let Some(open) = std::fs::canonicalize(&chosen)
+            .ok()
+            .and_then(|c| self.by_file.get(&c).copied())
+        {
+            let name = recovery::name_of(&chosen);
+            self.focus(open);
+            return self.notice(id, &tr!("chrome-save-as-open", name = name));
         }
         // As the dialog approved it: whatever is there later, or appears, isn't written over.
         let approved = match recovery::approve(&chosen) {
             Ok(approved) => approved,
             Err(error) => {
-                tracing::warn!(%error, "couldn't check a copy's destination");
+                tracing::warn!(%error, "couldn't check Save as's destination");
                 let reason = reason::of(&error);
-                return self.notice(id, &tr!("chrome-save-copy-failed", reason = reason));
+                return self.notice(id, &tr!("chrome-save-as-failed", reason = reason));
             }
         };
-        let copy = Copy {
+        let new_file = NewFile {
             path: chosen,
             approved,
         };
-        let Some(doc) = self.windows.get(&id) else {
+        let Some(doc) = self.windows.get_mut(&id) else {
             return;
         };
+        doc.saving_as = true;
         if doc.editor_open && doc.editable {
-            return self.ask_contents(id, Wanted::Copy(copy));
+            // Frozen first: the text asked for next is the last the editor takes, so nothing
+            // typed meanwhile is lost when the window moves to the new file.
+            self.run_script(id, "window.LegibleEditor?.freeze()");
+            return self.ask_contents(id, Wanted::SaveAs(new_file));
         }
         let Some(disk) = &doc.disk else {
+            doc.saving_as = false;
             return;
         };
         let bytes = match &disk.content {
             Content::Text { text, format } => save::encode(text, format),
             Content::Unsupported { bytes, .. } => bytes.clone(),
         };
-        self.write_copy(id, copy, bytes);
+        self.write_new(id, new_file, bytes);
     }
 
-    /// Writes a copy on a thread of its own. Its answer is [`UserEvent::CopyWritten`].
-    fn write_copy(&self, id: WindowId, copy: Copy, bytes: Vec<u8>) {
+    /// Writes Save as's file on a thread of its own. Its answer is [`UserEvent::SavedAs`].
+    fn write_new(&self, id: WindowId, new_file: NewFile, bytes: Vec<u8>) {
         let Some(source) = self.windows.get(&id).and_then(|d| d.file.clone()) else {
             return;
         };
         let proxy = self.proxy.clone();
-        let moments = self.moments(Write::Copy);
+        let moments = self.moments(Write::SaveAs);
         thread::spawn(move || {
-            let written =
-                recovery::write_copy(&copy.path, &bytes, copy.approved, &source, &*moments);
+            let written = recovery::write_copy(
+                &new_file.path,
+                &bytes,
+                new_file.approved,
+                &source,
+                &*moments,
+            );
             moments.over();
-            let _ = proxy.send_event(UserEvent::CopyWritten(id, copy.path, written));
+            let _ = proxy.send_event(UserEvent::SavedAs(id, new_file.path, written));
         });
     }
 
-    /// A copy is written (it opens in a window of its own), or couldn't be.
-    pub(super) fn copy_written(
+    /// Save as's file is written, and the window shows it in place of its own document: what
+    /// the reader had there is in the new file, so nothing is asked, and the old file stays as
+    /// it was on disk. Or it couldn't be written, and the window stays as it was, taking edits
+    /// again. A close asked for meanwhile goes on now.
+    pub(super) fn saved_as(
         &mut self,
         id: WindowId,
         path: PathBuf,
         written: Result<Stamp, recovery::NotCopied>,
-        target: &EventLoopWindowTarget<UserEvent>,
+    ) {
+        let Some(doc) = self.windows.get_mut(&id).filter(|d| d.saving_as) else {
+            return;
+        };
+        let close = std::mem::take(&mut doc.close_after_save_as);
+        self.after_save_as(id, path, written);
+        if close {
+            self.ask_close(id);
+        }
+    }
+
+    /// Save as's write is over: the window moves to the new file, or stays as it was.
+    fn after_save_as(
+        &mut self,
+        id: WindowId,
+        path: PathBuf,
+        written: Result<Stamp, recovery::NotCopied>,
     ) {
         let name = recovery::name_of(&path);
         let error = match written {
-            Ok(_) => return self.open_all(vec![path], target),
+            Ok(_) => return self.switch_to(id, &path),
             Err(recovery::NotCopied::Same) => {
-                return self.notice(id, &tr("chrome-save-copy-same"));
+                return self.not_saved_as(id, Some(tr("chrome-save-as-same")));
             }
             Err(recovery::NotCopied::Write(error)) => error,
         };
-        match error {
+        let text = match error {
             WriteError::Raced { backup, .. } => {
+                // Written, and theirs kept beside it: the window moves to it all the same.
                 let backup = recovery::keep_as(&path, &backup).unwrap_or(backup);
                 let text = tr!(
                     "chrome-conflict-raced",
-                    file = name.clone(),
+                    file = name,
                     name = recovery::name_of(&backup)
                 );
-                self.notice(id, &text);
-                self.open_all(vec![path], target);
+                self.switch_to(id, &path);
+                return self.notice(id, &text);
             }
-            WriteError::Conflict(_) => self.notice(id, &tr("chrome-save-copy-changed")),
+            WriteError::Conflict(_) => tr("chrome-save-as-changed"),
             WriteError::Failed(error) => {
-                tracing::warn!(%error, "a copy failed");
+                tracing::warn!(%error, "Save as failed");
                 let reason = reason::of(&error);
-                self.notice(id, &tr!("chrome-save-copy-failed", reason = reason));
+                tr!("chrome-save-as-failed", reason = reason)
             }
             WriteError::Partial {
                 original_at,
                 saved_at,
                 ..
-            } => {
-                let text = tr!(
-                    "chrome-save-partial",
-                    name = name,
-                    original = original_at.display().to_string(),
-                    saved = saved_at.display().to_string()
-                );
-                self.notice(id, &text);
-            }
+            } => tr!(
+                "chrome-save-partial",
+                name = name,
+                original = original_at.display().to_string(),
+                saved = saved_at.display().to_string()
+            ),
+        };
+        self.not_saved_as(id, Some(text));
+    }
+
+    /// Save as is over without a new file: the window stays as it was, its page taking edits
+    /// again, and says why (`text`).
+    fn not_saved_as(&mut self, id: WindowId, text: Option<String>) {
+        let Some(doc) = self.windows.get_mut(&id) else {
+            return;
+        };
+        doc.saving_as = false;
+        if doc.editor_open {
+            self.run_script(id, "window.LegibleEditor?.unfreeze()");
+        }
+        if let Some(text) = text {
+            self.notice(id, &text);
+        }
+    }
+
+    /// The window shows `path`, just written by Save as, in place of its document: everything
+    /// that followed the old file goes with it, as when Open replaces a document. Its unsaved
+    /// edits are the new file's text, so none is asked about; where the reader was in View is
+    /// carried over, and Split or Edit stays.
+    fn switch_to(&mut self, id: WindowId, path: &Path) {
+        let Some(file) = self.found(path) else {
+            return self.not_saved_as(id, None);
+        };
+        let Some(doc) = self.windows.get_mut(&id) else {
+            return;
+        };
+        let place = doc.place.clone();
+        doc.nav_guard.clear();
+        self.replace(id, file);
+        if let Some(doc) = self.windows.get_mut(&id)
+            && doc.go_to.is_none()
+        {
+            doc.go_to = place;
         }
     }
 
     // --- Closing -------------------------------------------------------------------------------
 
-    /// Every way a window closes: with unsaved edits, it asks first. While Take theirs is
-    /// being written, the close waits for it. A close wins over a document waiting to replace
+    /// Every way a window closes: with unsaved edits, it asks first. While Take theirs or Save
+    /// as is being written, the close waits for it. A close wins over a document waiting to replace
     /// the window's ([`Shell::open_here`]): the window closes, as the reader asked.
     pub(super) fn ask_close(&mut self, id: WindowId) {
         let Some(doc) = self.windows.get_mut(&id) else {
@@ -756,6 +846,12 @@ impl Shell {
         doc.replacing = None;
         if doc.race.as_ref().is_some_and(|r| r.taking) {
             doc.close_after_take = true;
+            return;
+        }
+        // The page is frozen for Save as's text, which is about to be the window's new file:
+        // asked now, Cancel would unfreeze it, and an edit then would be lost with the old page.
+        if doc.saving_as {
+            doc.close_after_save_as = true;
             return;
         }
         let dirty = doc.reload.is_dirty() || doc.nav_guard.dirty();
@@ -845,11 +941,12 @@ impl Shell {
         }
     }
 
-    /// Save a copy's dialog for `file`, owned by `owner` (0: none): in Documents, named "<name>
-    /// (copy)". None: cancelled.
-    pub(super) fn copy_dialog(&self, owner: isize, file: &Path) -> Option<PathBuf> {
+    /// Save as's dialog for `file`, owned by `owner` (0: none): named as the file is, in its own
+    /// folder, or in Documents when that's the temp folder or a cache (an attachment's or a
+    /// download's, [`editor::saves_beside`]) or has gone. None: cancelled.
+    pub(super) fn save_as_dialog(&self, owner: isize, file: &Path) -> Option<PathBuf> {
         if let Some(stand_in) = &self.stand_in {
-            return stand_in.copy_to();
+            return stand_in.save_as_to();
         }
         let stem = file
             .file_stem()
@@ -859,14 +956,19 @@ impl Shell {
         let extension = file
             .extension()
             .map_or("md".to_owned(), |e| e.to_string_lossy().into_owned());
+        let folder = file
+            .parent()
+            .filter(|folder| editor::saves_beside(file) && folder.is_dir())
+            .map(Path::to_path_buf)
+            .or_else(win32::pdf::documents_folder);
         dialogs::save_dialog(
             owner,
-            &tr("chrome-save-copy-title"),
-            &tr("chrome-save-copy-filter"),
+            &tr("chrome-save-as-title"),
+            &tr("chrome-save-as-filter"),
             &format!("*.{extension}"),
             &extension,
-            &tr!("chrome-save-copy-name", name = stem),
-            win32::pdf::documents_folder().as_deref(),
+            &stem,
+            folder.as_deref(),
         )
     }
 

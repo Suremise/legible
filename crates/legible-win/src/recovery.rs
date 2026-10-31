@@ -1,4 +1,4 @@
-//! The file work behind a save another program raced, and behind Save a copy: done here, on
+//! The file work behind a save another program raced, and behind Save as: done here, on
 //! files alone, so it can be proved on temp folders; `shell` decides when, and tells the page.
 //!
 //! **A raced save** (`legible_core::save::WriteError::Raced`): the other program's bytes are
@@ -8,8 +8,8 @@
 //! is still the save's own ([`take_theirs`]), and leaves the copy too. So whatever either
 //! program writes meanwhile, to the document or to the copy, is kept somewhere.
 //!
-//! **Save a copy:** the destination is approved as it is when the dialog closes
-//! ([`approve`]): absent, or a file with a stamp. The copy is written only over exactly that
+//! **Save as:** the destination is approved as it is when the dialog closes
+//! ([`approve`]): absent, or a file with a stamp. The new file is written only over exactly that
 //! ([`write_copy`]): a file that appears, or changes, after the approval is left alone and the
 //! write is a conflict; and it's never the document itself, by any name, checked again just
 //! before the write.

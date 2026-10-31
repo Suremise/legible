@@ -4,7 +4,7 @@
 //! The page asks for the file's text only when the editor first opens (`source`), sends its text
 //! back to be rendered for the Split preview (`render`), says when it has unsaved changes
 //! (`dirty`), and answers a request for its contents (`contents`). It asks to save (`save`,
-//! Ctrl+S) or save a copy (`save-copy`), answers the conflict bar (`compare`, and `raced` for a
+//! Ctrl+S) or save as a new file (`save-as`), answers the conflict bar (`compare`, and `raced` for a
 //! save another program raced), and, frozen for a close, says whether it's clean (`clean`). It
 //! answers the offer of unsaved edits kept as Windows ended the session (`restore`). The window
 //! answers through `window.LegibleEditor`: `load({text, editable})`,
@@ -40,8 +40,9 @@ pub enum Message<'a> {
     },
     /// Ctrl+S.
     Save,
-    /// "Save a copy…" (Ctrl+Shift+S, or the button on a file that can't be edited where it is).
-    SaveCopy,
+    /// "Save as…" (Ctrl+Shift+S, or the toolbar's Save as): the window switches to the file
+    /// it writes.
+    SaveAs,
     /// The frozen page's answer to `closeCheck()`: whether nothing is unsaved.
     Clean(bool),
     /// The conflict bar's Compare, for held change `id`.
@@ -84,7 +85,7 @@ impl<'a> Message<'a> {
         Some(match name {
             "source" if rest.is_empty() => Message::Source,
             "save" if rest.is_empty() => Message::Save,
-            "save-copy" if rest.is_empty() => Message::SaveCopy,
+            "save-as" if rest.is_empty() => Message::SaveAs,
             "restored" if rest.is_empty() => Message::Restored,
             "clean" => Message::Clean(match rest {
                 "true" => true,
@@ -230,8 +231,8 @@ pub fn window_title(title: &str, dirty: bool) -> String {
 
 /// Whether `file` (canonical) may be edited where it is: not when it's read-only, nor when it's
 /// in the temp folder (`temp`, canonical) or a browser's or Outlook's cache, where an email's
-/// attachment or a download opens from and an edit would be lost. Such a file offers "Save a
-/// copy…" instead.
+/// attachment or a download opens from and an edit would be lost. Such a file offers "Save
+/// as…" instead.
 pub fn editable(file: &Path, read_only: bool, temp: Option<&Path>) -> bool {
     !read_only && !temp.is_some_and(|temp| file.starts_with(temp)) && !in_a_cache(file)
 }
@@ -255,6 +256,14 @@ pub fn file_is_editable(file: &Path) -> bool {
     let read_only = std::fs::metadata(file).is_ok_and(|m| m.permissions().readonly());
     let temp = std::fs::canonicalize(std::env::temp_dir()).ok();
     editable(file, read_only, temp.as_deref())
+}
+
+/// Whether Save as starts in `file`'s own folder: not when that's the temp folder or a cache,
+/// where an attachment or a download opens from (it starts in Documents instead). A read-only
+/// file's folder is fine: the new file is another.
+pub fn saves_beside(file: &Path) -> bool {
+    let temp = std::fs::canonicalize(std::env::temp_dir()).ok();
+    editable(file, false, temp.as_deref())
 }
 
 #[cfg(test)]
@@ -330,7 +339,7 @@ mod tests {
     fn the_editors_messages_parse() {
         assert_eq!(Message::parse("source"), Some(Message::Source));
         assert_eq!(Message::parse("save"), Some(Message::Save));
-        assert_eq!(Message::parse("save-copy"), Some(Message::SaveCopy));
+        assert_eq!(Message::parse("save-as"), Some(Message::SaveAs));
         assert_eq!(Message::parse("clean\ntrue"), Some(Message::Clean(true)));
         assert_eq!(Message::parse("compare\n4"), Some(Message::Compare(4)));
         assert_eq!(Message::parse("restore\nyes"), Some(Message::Restore(true)));
@@ -405,7 +414,9 @@ mod tests {
             "render\n7",
             "contents\n1\n2",
             "contents\nx\n2\ntext",
-            "save-copy\nnow",
+            "save-as\nnow",
+            // Save a copy is gone: Save as took its place.
+            "save-copy",
             "save\nnow",
             "clean",
             "clean\nyes",

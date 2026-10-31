@@ -17,9 +17,9 @@
 //                                text, which the window keeps as it comes for Windows ending
 //                                the session
 //   contents\n<request>\n<version>\n<text>   the answer to contents(request)
-//   save                         Ctrl+S
-//   save-copy                    "Save a copy…" (Ctrl+Shift+S, or the button on a file that
-//                                can't be edited where it is)
+//   save                         Ctrl+S, or the toolbar's Save
+//   save-as                      "Save as…" (Ctrl+Shift+S, or the toolbar's Save as): the
+//                                window then shows the new file
 //   keep\n<id>, reload\n<id>, compare\n<id>   the conflict bar's Keep my changes, Use the
 //                                file and Compare, for held change <id>
 //   raced\n<keep|take|compare>\n<id>   the same (Use the other version for take), for save <id>
@@ -917,11 +917,11 @@
         event.stopPropagation();
         if (editable) cycle();
       } else if (ctrl && (event.key === "s" || event.key === "S")) {
-        // Save, or Save a copy; on a file that can't be saved where it is, the window offers a
-        // copy for either.
+        // Save, or Save as; on a file that can't be saved where it is, the window offers Save
+        // as for either.
         event.preventDefault();
         event.stopPropagation();
-        send(event.shiftKey ? "save-copy" : "save");
+        send(event.shiftKey ? "save-as" : "save");
       }
     },
     true,
