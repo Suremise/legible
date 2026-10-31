@@ -906,7 +906,20 @@ since the process was created; "Performance", below, has the full record):
     panes at 3:1); a double-click puts it back at 50%, saved as a drag is. Edit shows
     the text alone, in the reading column. Ctrl+E goes View → Split → Edit → View, and the
     toolbar's buttons follow; the last mode asked for wins, however long the editor takes to
-    load. The page's layout for each is `mode-split` or `mode-edit` on `<html>`
+    load. **The place is kept across a change of mode,** by the lines the blocks came from
+    (`data-sourcepos`, as scroll sync maps them): the page itself doesn't scroll in Split and
+    Edit, so View's place would otherwise be lost on the way. Going to View, the line at the top
+    of the text (Edit) or of the document's pane (Split) is put at the top of the page under the
+    chrome, at once if the document shows the text already, else once its render is shown, and
+    again once its diagrams are drawn, held there by the chrome's hold as the blocks round it
+    are laid out (Long documents); the reader's own scrolling, keys or pointer let it go. Going
+    from View, the line at the top of the page is put at the top of the text, and Split's pane
+    follows the text. The file as it opened is rendered without its lines, so there the way to
+    the element at the top (each child's index from `#document` down, and how far into it the
+    top is) is kept instead, and followed in the first render that has them, to the deepest
+    element on the way with its lines. That render isn't prepared yet (code has no
+    highlighting), so the way can end early: the share of the element it ends at keeps the
+    place. The page's layout for each is `mode-split` or `mode-edit` on `<html>`
     (`editor.css`): in Split the document's pane scrolls by itself. The editor's pane is as tall
     as its top and bottom leave (`codemirror.css`'s `height: 100%` on its host is overruled, so
     its last lines are never below the window).

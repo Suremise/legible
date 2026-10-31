@@ -545,12 +545,14 @@
       fresh.replaceWith(old);
     }
     shownVersion = rendered;
+    blocks = null;
     scroller.scrollTop = top;
     // The page's render is this one now, and its approved pictures show in it.
     window.LegibleChrome?.adopt?.(info);
     const current = () => shownVersion === rendered && version === rendered;
     window.LegibleDoc?.releaseSheets?.();
     document.dispatchEvent(new CustomEvent("legible-document-changed"));
+    placeShown();
     const prepared = window.LegibleDoc?.prepare(doc, { current }) ?? Promise.resolve();
     prepared.then(() => {
       window.LegibleDoc?.releaseSheets?.();
@@ -558,6 +560,9 @@
       preparedVersion = rendered;
       blocks = null;
       if (mode === "split") syncPreview();
+      // Its diagrams drawn, the place back in View is put again where they moved it, and kept.
+      if (mode === "view" && viewLine !== null) placeInView(viewLine);
+      viewLine = null;
       if (rendered === diskVersion) window.LegibleChrome?.updated?.();
     });
   }
@@ -572,7 +577,8 @@
   }
 
   function sourceBlocks() {
-    if (blocks) return blocks;
+    // The document replaced since (live reload, in View) needs them found again.
+    if (blocks && (blocks.length === 0 || blocks[0].el.isConnected)) return blocks;
     blocks = [];
     for (const el of doc.querySelectorAll("[data-sourcepos]")) {
       const m = /^(\d+):\d+-(\d+):\d+$/.exec(el.dataset.sourcepos);
@@ -600,10 +606,6 @@
       }
     }
     return { best, before, after };
-  }
-
-  function topIn(scroller, el) {
-    return el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
   }
 
   // The document's pane, scrolled to follow the text: its own scroll event, when it comes, is
@@ -661,41 +663,38 @@
     editor.dispatch({ effects: effect });
   }
 
-  /** Where the preview shows (fractional) line `line` at its top. */
-  function previewTopFor(line) {
+  /** Where the document shows (fractional) line `line`: a measure of it, from the viewport's
+      top, taken afresh each time it's called (the blocks it measures are found once), or null
+      for a document without its lines. */
+  function lineMeasure(line) {
     const { best, before, after } = blocksForLine(Math.floor(line));
-    const scroller = previewScroller();
-    const bottomOf = (block) => topIn(scroller, block.el) + block.el.getBoundingClientRect().height;
-    let top;
+    const rect = (block) => block.el.getBoundingClientRect();
     if (best) {
       const span = best.end - best.start + 1;
       const fraction = Math.min(1, Math.max(0, (line - best.start) / span));
-      top = topIn(scroller, best.el) + fraction * best.el.getBoundingClientRect().height;
-    } else if (before && after) {
+      return () => rect(best).top + fraction * rect(best).height;
+    }
+    if (before && after) {
       // Between two blocks: as far between the one's bottom and the other's top.
       const fraction = Math.min(1, Math.max(0, (line - before.end) / (after.start - before.end)));
-      top = bottomOf(before) + fraction * (topIn(scroller, after.el) - bottomOf(before));
-    } else if (after) {
-      top = topIn(scroller, after.el);
-    } else if (before) {
-      top = bottomOf(before);
-    } else {
-      return null;
+      return () => rect(before).bottom + fraction * (rect(after).top - rect(before).bottom);
     }
-    return top - 8;
+    if (after) return () => rect(after).top;
+    if (before) return () => rect(before).bottom;
+    return null;
   }
 
-  function previewScrolled() {
-    if (mode !== "split" || !editor || shownVersion !== version) return;
+  /** Where the preview shows (fractional) line `line` at its top. */
+  function previewTopFor(line) {
+    const at = lineMeasure(line);
+    if (!at) return null;
     const scroller = previewScroller();
-    if (previewEcho !== null && Math.abs(scroller.scrollTop - previewEcho) < 2) {
-      previewEcho = null;
-      return;
-    }
-    previewEcho = null;
-    if (scroller.scrollTop <= 0) return scrollEditorToLine(1, true);
-    // The block at the preview's top (the smallest there), or the first below it.
-    const edge = scroller.getBoundingClientRect().top + 8;
+    return at() - scroller.getBoundingClientRect().top + scroller.scrollTop - 8;
+  }
+
+  /** The (fractional) line the document shows at `edge` (from the viewport's top): the block
+      there (the smallest), or the first below it. Null for a document without its lines. */
+  function lineAtEdge(edge) {
     let found = null;
     for (const block of sourceBlocks()) {
       const rect = block.el.getBoundingClientRect();
@@ -707,10 +706,123 @@
         break;
       }
     }
-    if (!found) return;
+    if (!found) return null;
     const { block, rect } = found;
     const fraction = rect.height ? Math.min(1, Math.max(0, (edge - rect.top) / rect.height)) : 0;
-    scrollEditorToLine(block.start + fraction * (block.end - block.start + 1), true);
+    return block.start + fraction * (block.end - block.start + 1);
+  }
+
+  function previewScrolled() {
+    if (mode !== "split" || !editor || shownVersion !== version) return;
+    const scroller = previewScroller();
+    if (previewEcho !== null && Math.abs(scroller.scrollTop - previewEcho) < 2) {
+      previewEcho = null;
+      return;
+    }
+    previewEcho = null;
+    if (scroller.scrollTop <= 0) return scrollEditorToLine(1, true);
+    const line = lineAtEdge(scroller.getBoundingClientRect().top + 8);
+    if (line !== null) scrollEditorToLine(line, true);
+  }
+
+  // --- The place across the modes --------------------------------------------------------------
+
+  // Going to View, the line at the top of the text (Edit) or of the document's pane (Split) is
+  // put at the top of the page, under the chrome; going from View, the line at the top of the
+  // page is put at the top of the text (and Split's pane follows the text). Line 0 is the very
+  // top. The page in View scrolls as a whole; in Split and Edit it doesn't scroll at all, so its
+  // own place is lost on the way and has to be carried across.
+
+  // Where View is to show, until the render it waits for is drawn (its diagrams too): the
+  // reader's own scrolling, keys or pointer end it, as they end the chrome's holds.
+  let viewLine = null;
+  // Where the text is to show, as a path into a document rendered without its lines (the file
+  // as it opened), until the first render that has them.
+  let textPath = null;
+  for (const type of ["wheel", "keydown", "pointerdown", "touchstart"]) {
+    window.addEventListener(type, () => (viewLine = null), { capture: true, passive: true });
+  }
+
+  // Where a line comes to rest in View: a little under the chrome, as in Split's pane.
+  const viewEdge = () => (window.LegibleChrome?.top?.() ?? 40) + 8;
+
+  /** The line at the top of the page in View; or, in a document rendered without its lines,
+      the way to the element there (`path`: the index of each child to take from #document
+      down, and how far into it the top is), to find its lines by in a render that has them. */
+  function viewPlace() {
+    if (document.scrollingElement.scrollTop <= 0) return { line: 0 };
+    const edge = viewEdge();
+    const line = lineAtEdge(edge);
+    if (line !== null) return { line };
+    const path = [];
+    let node = doc;
+    // The blocks go down the page in order: a binary search finds the one at the edge, so a
+    // document of thousands of blocks measures a dozen or so. Inside it, each child is looked at.
+    const kids = node.children;
+    let low = 0;
+    let high = kids.length;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if (kids[mid].getBoundingClientRect().bottom > edge) high = mid;
+      else low = mid + 1;
+    }
+    if (low >= kids.length) return { line: null };
+    for (let index = low; ; ) {
+      const rect = node.children[index].getBoundingClientRect();
+      const fraction = rect.height ? Math.min(1, Math.max(0, (edge - rect.top) / rect.height)) : 0;
+      path.push({ index, fraction });
+      node = node.children[index];
+      if (rect.top > edge) break; // the first below the edge: its top
+      index = [...node.children].findIndex((child) => {
+        const r = child.getBoundingClientRect();
+        return r.height > 0 && r.top <= edge && r.bottom > edge;
+      });
+      if (index < 0) break;
+    }
+    return { path };
+  }
+
+  /** The line `place.path` leads to in the document as it is now: the deepest element on the
+      way that has its lines, as far into them as the top was into it. What the page added to
+      the document as it prepared it (code's highlighting, say) isn't in a render just shown, so
+      the way can end early: the share of the element it ends at still holds the place. */
+  function lineByPath({ path }) {
+    let node = doc;
+    let line = null;
+    for (const { index, fraction } of path) {
+      node = node.children[index];
+      if (!node) break;
+      const m = /^(\d+):\d+-(\d+):\d+$/.exec(node.dataset?.sourcepos ?? "");
+      if (!m) continue;
+      const start = Number(m[1]);
+      const end = Math.max(start, Number(m[2]));
+      line = start + fraction * (end - start + 1);
+    }
+    return line;
+  }
+
+  /** Puts line `line` at the top of the page in View, and keeps it there as the blocks round
+      it are laid out (the chrome's hold). */
+  function placeInView(line) {
+    if (line <= 0) {
+      window.scrollTo({ top: 0, behavior: "instant" });
+      return;
+    }
+    const at = lineMeasure(line);
+    if (!at) return;
+    const edge = viewEdge();
+    window.scrollBy({ top: at() - edge, behavior: "instant" });
+    window.LegibleChrome?.hold?.(at, edge);
+  }
+
+  /** A render was just shown: the place waiting for it is put. */
+  function placeShown() {
+    if (mode === "view" && viewLine !== null) placeInView(viewLine);
+    if (mode !== "view" && textPath) {
+      const line = lineByPath(textPath);
+      textPath = null;
+      if (line !== null) scrollEditorToLine(line);
+    }
   }
 
   doc.addEventListener("scroll", () => previewScrolled(), { passive: true });
@@ -734,24 +846,40 @@
     }
     if (request !== modeRequest || next === mode) return;
     const previous = mode;
-    // The line at the top, kept across the change.
-    const line = previous === "view" ? null : topLine();
+    // The place at the top, kept across the change (The place across the modes, above).
+    const place = previous === "view" ? viewPlace() : { line: topLine() };
+    viewLine = null;
+    textPath = null;
     mode = next;
     root.classList.toggle("mode-split", mode === "split");
     root.classList.toggle("mode-edit", mode === "edit");
     send(`mode\n${mode}`);
     document.dispatchEvent(new CustomEvent("legible-mode", { detail: mode }));
     if (mode === "view") {
-      // The document shows the latest text as soon as it's rendered.
+      // The document shows the latest text as soon as it's rendered, at the same place: now if
+      // it shows it already, else once it does.
+      viewLine = place.line;
       sendRender();
+      if (shownVersion === version) {
+        placeInView(viewLine);
+        if (preparedVersion === version) viewLine = null;
+      }
       return;
+    }
+    // A place in a document without its lines waits for a render that has them.
+    const line = place.line;
+    if (place.path) {
+      textPath = place;
+      shownVersion = -2;
+      sentVersion = -2;
+      sendRender();
     }
     editor.requestMeasure();
     // Once the new layout is measured. The promise settles after this, so a caller that waits
     // for it finds the change done, the editor's focus included.
     await new Promise((resolve) =>
       requestAnimationFrame(() => {
-        if (line) scrollEditorToLine(line);
+        if (line !== null && line !== undefined) scrollEditorToLine(line);
         if (mode === "split") {
           sendRender();
           syncPreview();
@@ -762,8 +890,18 @@
     );
   }
 
+  /** The (fractional) line at the top in Split or Edit, 0 at the very top: of the document's
+      pane in Split, once it shows the text's render; else of the text. */
   function topLine() {
-    return editor ? editorTop().line : null;
+    if (!editor) return null;
+    if (mode === "split" && shownVersion === version) {
+      if (doc.scrollTop <= 0) return 0;
+      const line = lineAtEdge(doc.getBoundingClientRect().top + 8);
+      if (line !== null) return line;
+    }
+    if (editor.scrollDOM.scrollTop <= 0) return 0;
+    const { line, within } = editorTop();
+    return line + within;
   }
 
   function cycle() {
