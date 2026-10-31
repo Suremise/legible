@@ -2540,6 +2540,74 @@ await test("scroll sync: the text and the document keep the same place, both way
   );
 });
 
+await test("the place kept between the modes: View → Edit → type → View, and View → Split → scroll → View", async () => {
+  await open("long");
+  const lines = fileText("long").split("\n");
+  const lineOf = (n) => lines.indexOf(`## Section ${n}`) + 1;
+  const section = (n) => `[...document.querySelectorAll("#document h2")].find((h) => h.textContent === "Section ${n}")`;
+  // The heading's top, from the page's top under the chrome (View), or from the document's pane (Split).
+  const fromTop = (n) =>
+    evaluate(`(() => {
+      const doc = document.getElementById("document");
+      const split = document.documentElement.classList.contains("mode-split");
+      const top = split ? doc.getBoundingClientRect().top : parseFloat(getComputedStyle(document.body).paddingTop);
+      return ${section(n)}.getBoundingClientRect().top - top;
+    })()`);
+  const textTop = () =>
+    evaluate(`(() => {
+      const v = LegibleEditor.view();
+      const top = v.scrollDOM.getBoundingClientRect().top - v.documentTop;
+      return v.state.doc.lineAt(v.lineBlockAtHeight(Math.max(0, top)).from).number;
+    })()`);
+  /** The text scrolled to put line `line` at its top. */
+  const scrollText = (line) =>
+    evaluate(`(() => {
+      const v = LegibleEditor.view();
+      v.dispatch({ effects: CM.view.EditorView.scrollIntoView(v.state.doc.line(${line}).from, { y: "start", yMargin: 0 }) });
+    })()`);
+  // Held there (the blocks round it are laid out as they come), not merely passed on the way.
+  const restsAt = async (n, what) => {
+    await pumped(what, async () => Math.abs((await fromTop(n)) - 8) < 20);
+    await evaluate("new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))");
+    const at = await fromTop(n);
+    expect(Math.abs(at - 8) < 20, `${what}: it moved on, to ${at}`);
+  };
+
+  // View, at Section 40: Edit shows the text there.
+  const id = await evaluate(`${section(40)}.id`);
+  await evaluate(`LegibleChrome.goTo({ id: ${JSON.stringify(id)}, offset: 0, fraction: 0 })`);
+  await until("the reader at Section 40", async () => Math.abs(await fromTop(40)) < 2);
+  await toMode("edit");
+  await pumped("the text at Section 40", async () => Math.abs((await textTop()) - lineOf(40)) <= 1);
+  // A change typed there, and the text scrolled on to Section 55: back in View, the document
+  // shows Section 55 at the top, its new render and all.
+  await evaluate(`(() => { const v = LegibleEditor.view(); v.dispatch({ selection: { anchor: v.state.doc.line(${lineOf(40) + 2}).from } }); v.focus(); })()`);
+  await type("Edited. ");
+  await scrollText(lineOf(55));
+  await until("the text at Section 55", async () => Math.abs((await textTop()) - lineOf(55)) <= 1);
+  await toMode("view");
+  await restsAt(55, "View at Section 55 after Edit");
+  expect(await evaluate(`document.getElementById("document").textContent.includes("Edited.")`), "the change isn't shown");
+
+  // Split from there: both panes at Section 55.
+  await toMode("split");
+  await pumped("the text at Section 55 in Split", async () => Math.abs((await textTop()) - lineOf(55)) <= 1);
+  await pumped("the document's pane at Section 55", async () => Math.abs((await fromTop(55)) - 8) < 24);
+  // The document's pane scrolled back to Section 25: View shows it at the top.
+  await evaluate(`(() => {
+    const doc = document.getElementById("document");
+    doc.scrollTop += ${section(25)}.getBoundingClientRect().top - doc.getBoundingClientRect().top;
+  })()`);
+  await until("the text to follow to Section 25", async () => Math.abs((await textTop()) - lineOf(25)) <= 1);
+  await toMode("view");
+  await restsAt(25, "View at Section 25 after Split");
+  // And with nothing changed, Edit and back keeps it too.
+  await toMode("edit");
+  await pumped("the text at Section 25", async () => Math.abs((await textTop()) - lineOf(25)) <= 1);
+  await toMode("view");
+  await restsAt(25, "View at Section 25 after Edit, unchanged");
+});
+
 console.log(`Mermaid's inline styles refused by the CSP while laying out: ${mermaidStyleReports}.`);
 for (const p of problems) {
   failures++;

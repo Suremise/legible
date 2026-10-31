@@ -2121,6 +2121,11 @@
     adopt,
     reloadWaits,
     layout: scheduleLayout,
+    /** Where the page's view starts under the chrome, from the viewport's top. */
+    top: () => chromeTop(),
+    /** Keeps what `top()` measures at `line` while the blocks round it are laid out (holdAt):
+        the editor's place, back in View. */
+    hold: (top, line) => holdAt(top, line),
     status: showStatus,
     /** The status bar's path is on the clipboard. */
     pathCopied() {

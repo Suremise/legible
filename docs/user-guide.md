@@ -202,6 +202,9 @@ Edit**, the **View** menu, or **Ctrl+E**, which goes View, Split, Edit and back.
   room (or use the arrow keys when it's selected); double-click it to share the window evenly.
 - **Edit** shows the text alone, in the reading column.
 
+Changing between them keeps your place: the text opens where you were reading, and back in View
+the document shows where you were in the text, or in Split's document.
+
 The text is in the reading style's font, with Markdown's marks faded and headings larger.
 **Settings > Appearance > Editor font** can make it Monospace instead.
 
