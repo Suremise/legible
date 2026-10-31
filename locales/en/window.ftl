@@ -283,6 +283,12 @@ chrome-save = Save
 chrome-save-as = Save as
 chrome-save-nothing = nothing to save
 chrome-save-not-editable = this file can't be saved where it is. Use Save as to save it somewhere else.
+# The toolbar's groups of buttons, between its dividers: what a screen reader names each.
+chrome-group-file = File
+chrome-group-editing = Editing
+chrome-group-find = Find your way
+chrome-group-look = Zoom and reading
+chrome-group-out = Print and export
 # The toolbar's Undo and Redo, beside Save as, in Split and Edit only: the editor's own history.
 chrome-undo = Undo
 chrome-redo = Redo

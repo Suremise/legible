@@ -1,7 +1,9 @@
 //! The document's and the window's colours pass WCAG AA: every text colour in
 //! `web/doc/document.css` and `web/chrome/window.css`, against each background it's shown on,
 //! in the light theme and the dark, is at least 4.5:1, and each bar's icon and the toolbar's
-//! button group's outline at least 3:1 against what's round it (AA for graphics).
+//! button group's outline at least 3:1 against what's round it (AA for graphics). The dividers
+//! between the toolbar's groups are only drawn (the groups' names say what's grouped), so
+//! they're held to plainly visible instead: 1.5:1.
 //!
 //! The colours are read from the stylesheets themselves: each is a variable written as
 //! `--name: light-dark(#light, #dark);`.
@@ -13,6 +15,11 @@ use std::path::Path;
 const AA: f64 = 4.5;
 /// AA for graphics (an icon) against what's round it.
 const AA_GRAPHICS: f64 = 3.0;
+/// A rule that's only drawn, against what it's on: plain to see, if not a control's boundary.
+const DRAWN: f64 = 1.5;
+
+/// The rules only drawn, and what each is on: the dividers between the toolbar's groups.
+const DRAWN_RULES: &[(&str, &str)] = &[("toolbar-divider", "toolbar-bg")];
 
 /// The text colours and the backgrounds each one is shown on.
 const PAIRS: &[(&str, &[&str])] = &[
@@ -131,7 +138,8 @@ fn every_text_colour_passes_aa_in_both_themes() {
         .iter()
         .map(|(text, bg)| (text.as_str(), bg.as_str(), AA));
     let icons = ICONS.iter().map(|(icon, bg)| (*icon, *bg, AA_GRAPHICS));
-    for (text, bg, least) in checks.chain(icons) {
+    let drawn = DRAWN_RULES.iter().map(|(rule, bg)| (*rule, *bg, DRAWN));
+    for (text, bg, least) in checks.chain(icons).chain(drawn) {
         let (text_light, text_dark) = get(text);
         let (bg_light, bg_dark) = get(bg);
         for (theme, fg, back) in [

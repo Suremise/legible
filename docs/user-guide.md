@@ -60,15 +60,24 @@ from this PC's apps for .md files** takes it out again.
 
 ## Reading
 
-The toolbar at the top has, from the left: **Open**, with an arrow that lists the recent files;
-**View, Split and Edit**, with the dot for unsaved changes; **Save** and **Save as**; **Undo** and
-**Redo**, in Split and Edit; **Outline**; **Find**; the **zoom**; **Reading width and style**;
-**Print**; **Save as PDF**; **Copy**; and **⋯** (More), with Open in editor, Show in folder,
-Settings and About. Every button says what it does, and its shortcut, when you hover over it.
-In a narrow window, groups of buttons move into the **⋯** menu, where they do the same: first
-Print, Save as PDF and Copy, then the zoom and the reading width and style, and in the narrowest
-Split, Outline and Find. Widen the window and they come back. The menu bar above it (File, Edit, View,
-Tools and Help) has the same commands, and works from the keyboard with Alt.
+The toolbar at the top has its buttons in groups, with a thin line between them. From the left:
+
+- **Open**, with an arrow that lists the recent files.
+- **View, Split and Edit**, with the dot for unsaved changes; **Save** and **Save as**; and, in
+  Split and Edit, **Undo** and **Redo**.
+
+and on the right:
+
+- **Outline** and **Find**.
+- The **zoom** and **Reading width and style**.
+- **Print**, **Save as PDF** and **Copy**.
+- **⋯** (More), with Open in editor, Show in folder, Settings and About.
+
+Every button says what it does, and its shortcut, when you hover over it. In a narrow window,
+whole groups move into the **⋯** menu, where they do the same: first Print, Save as PDF and Copy,
+then the zoom and the reading width and style, and in the narrowest Split, Outline and Find. Widen
+the window and they come back. The menu bar above the toolbar (File, Edit, View, Tools and Help)
+has the same commands, and works from the keyboard with Alt.
 
 ### What a document shows
 
