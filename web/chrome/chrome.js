@@ -506,16 +506,28 @@
     button(s("zoom-in"), { text: "+", shortcut: keys("Ctrl", "+"), onclick: () => zoomBy(1) }),
   );
 
+  // The strip's groups, each a labelled group, with a divider after each but the last on its
+  // side: Open | the modes, the unsaved dot, Save, Save as, Undo and Redo || Outline and Find |
+  // the zoom and Reading width and style | Print, Save as PDF and Copy | ⋯. The dividers are
+  // only drawn (aria-hidden: the groups' names say what's grouped), and one after a hidden group
+  // goes with it (window.css), so none is ever doubled or left at a side's end.
+  const toolGroup = (name, ...children) =>
+    el("div", { className: "tool-group", role: "group", "aria-label": s(`group-${name}`) }, ...children);
+  const divider = () => el("div", { className: "divider", "aria-hidden": "true" });
+  const findGroup = toolGroup("find", outlineButton, findButton);
+  const lookGroup = toolGroup("look", zoomGroup, reading.wrap);
+  const outGroup = toolGroup("out", printButton, pdfButton, copyButton);
+
   // A narrow window: whole groups of the strip leave it, in this order, until what's left fits
   // with room between its two sides, and show at the top of the ⋯ menu instead, doing the same
   // (fitToolbar). Open, the modes, Save, Save as, Undo, Redo and ⋯ itself always stay.
   const TIERS = [
-    { tools: [printButton, pdfButton, copyButton], items: () => [
+    { tools: [outGroup], items: () => [
       { label: s("print"), hint: keys("Ctrl", "P"), onselect: () => window.print() },
       { label: s("save-pdf"), disabled: noDocument, onselect: () => send("save-pdf") },
       { label: s("copy"), hint: keys("Ctrl", "Shift", "C"), onselect: () => copyDocument() },
     ] },
-    { tools: [zoomGroup, reading.wrap], items: () => [
+    { tools: [lookGroup], items: () => [
       { label: s("zoom-out"), hint: keys("Ctrl", "−"), onselect: () => zoomBy(-1) },
       { label: s("zoom-reset"), hint: zoomText(), onselect: () => setZoom(100) },
       { label: s("zoom-in"), hint: keys("Ctrl", "+"), onselect: () => zoomBy(1) },
@@ -526,7 +538,7 @@
       style("sans"),
       style("serif"),
     ] },
-    { tools: [outlineButton, findButton], items: () => [
+    { tools: [findGroup], items: () => [
       {
         label: s("outline"),
         hint: keys("Ctrl", "Shift", "O"),
@@ -554,26 +566,19 @@
     el(
       "div",
       { className: "group" },
-      recentMenu.wrap,
-      el("div", { className: "segmented", role: "group", "aria-label": s("mode") }, ...modeButtons),
-      unsaved,
-      saveButton,
-      saveAsButton,
-      undoButton,
-      redoButton,
+      toolGroup("file", recentMenu.wrap),
+      divider(),
+      toolGroup(
+        "editing",
+        el("div", { className: "segmented", role: "group", "aria-label": s("mode") }, ...modeButtons),
+        unsaved,
+        saveButton,
+        saveAsButton,
+        undoButton,
+        redoButton,
+      ),
     ),
-    el(
-      "div",
-      { className: "group" },
-      outlineButton,
-      findButton,
-      zoomGroup,
-      reading.wrap,
-      printButton,
-      pdfButton,
-      copyButton,
-      more.wrap,
-    ),
+    el("div", { className: "group" }, findGroup, divider(), lookGroup, divider(), outGroup, divider(), more.wrap),
   );
 
   /** The width a side of the strip needs: from its first shown part to its last, as they're

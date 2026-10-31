@@ -536,9 +536,19 @@ since the process was created; "Performance", below, has the full record):
   recent files; View, Split and Edit; Save and Save as; Undo and Redo in Split and Edit;
   Outline, Find, Zoom, Reading width and style, Print, Save as PDF, Copy, and a More menu with
   Open in editor, Show in folder, Settings and About), a find bar under it, and the outline
-  panel on the left. **A narrow window** (the window goes down to 400 px): the strip measures
-  what each side needs (`fitToolbar`, on a `ResizeObserver` of the strip, a mode change and a
-  zoom change, whose label's width changes) and hides whole groups in order (`TIERS`) until
+  panel on the left. **The strip's groups** (`toolGroup`, each `role="group"` named by
+  Fluent's `chrome-group-*`): File (Open) | Editing (the modes, the dot, Save, Save as, Undo,
+  Redo) on the left; Find your way (Outline, Find) | Zoom and reading | Print and export (Print,
+  Save as PDF, Copy) | More on the right, the strip's own space between the sides. Between
+  groups is a divider (`.divider`, 1 px by 20 px, about 60% of the buttons, 8 px either side,
+  `--toolbar-divider`), only drawn (`aria-hidden`, no `separator` role: the groups' names say
+  what's grouped, and a separator in the tab-less strip would only be read out); each follows
+  its group, so `#toolbar [hidden] + .divider` takes it away with a group that's gone, and
+  none is ever doubled or at a side's end. The contrast test holds the divider to 1.5:1 on the
+  strip (a drawn rule, not a control's boundary). The arrow keys move between buttons only. **A narrow window** (the window goes down to 400 px): the strip measures
+  what each side needs, dividers included (`fitToolbar`, on a `ResizeObserver` of the strip, a
+  mode change and a zoom change, whose label's width changes) and hides whole groups in order
+  (`TIERS`, the strip's own groups) until
   both sides fit with the strip's gap between them: Print, Save as PDF and Copy first, then the
   zoom and Reading width and style, then Outline and Find (only the narrowest Split needs that).
   Open, the modes, Save, Save as, Undo, Redo and the More menu always stay. A hidden group's

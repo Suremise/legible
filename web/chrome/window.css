@@ -24,6 +24,10 @@
   /* The outline of a group of buttons on the strip (View, Split and Edit): 3:1 against the
      strip, as a control's boundary needs, so the group keeps its shape in either theme. */
   --group-border: light-dark(#8c8c8c, #808080);
+  /* The dividers between the strip's groups: only drawn, the groups' names say what's grouped
+     (so WCAG's 3:1 for a control's boundary isn't theirs), but plain to see in either theme:
+     crates/legible-core/tests/contrast.rs holds them to 1.5:1 against the strip. */
+  --toolbar-divider: light-dark(#c2c2c2, #5e5e5e);
   /* The bars over the document, as Windows' InfoBar: information and choices on a tint of the
      accent, warnings about the reader's work in amber (--warning, --warning-bg), each with its
      icon in its stripe's colour. crates/legible-core/tests/contrast.rs checks the tints. */
@@ -212,9 +216,30 @@ dialog.panel :is(input, select, a, pre):focus-visible {
   min-width: 0;
 }
 
+/* A group of the strip's buttons, and the divider after it: a thin rule about 60% of the
+   buttons' height, the same room either side. */
+.tool-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.divider {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  margin: 0 6px;
+  background: var(--toolbar-divider);
+}
+
+/* A group gone from the strip (Undo and Redo don't count: the editing group keeps its modes)
+   takes its divider with it. */
+#toolbar [hidden] + .divider {
+  display: none;
+}
+
 .segmented {
   display: flex;
-  margin-left: 8px;
   border: 1px solid var(--group-border);
   border-radius: 5px;
   padding: 1px;

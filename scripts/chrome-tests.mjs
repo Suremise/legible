@@ -2278,6 +2278,90 @@ await test("a narrow window: the strip's groups move into ⋯ in turn, never ove
   }
 });
 
+await test("the strip's groups: named, in order, a divider between each, none doubled or at a side's end, at every width", async () => {
+  // Each side's shown parts, as group names and "|" for a divider; and the dividers' look.
+  const layout = () =>
+    evaluate(`(() => {
+      const sides = [...document.querySelectorAll('#toolbar > .group')].map((side) =>
+        [...side.children]
+          .filter((c) => getComputedStyle(c).display !== 'none' && c.getBoundingClientRect().width > 0)
+          .map((c) => c.classList.contains('divider') ? '|' : c.getAttribute('aria-label') ?? c.querySelector('[aria-label]')?.getAttribute('aria-label')));
+      const dividers = [...document.querySelectorAll('#toolbar .divider')].filter((d) => getComputedStyle(d).display !== 'none');
+      const tool = document.querySelector('#toolbar [aria-label="Open"]').getBoundingClientRect();
+      const looks = dividers.map((d) => {
+        const r = d.getBoundingClientRect();
+        const before = d.previousElementSibling.getBoundingClientRect();
+        let next = d.nextElementSibling;
+        while (next && getComputedStyle(next).display === 'none') next = next.nextElementSibling;
+        const after = next.getBoundingClientRect();
+        return { share: r.height / tool.height, mid: Math.abs((r.top + r.bottom) / 2 - (tool.top + tool.bottom) / 2),
+          left: Math.round(r.left - before.right), right: Math.round(after.left - r.right), hidden: d.getAttribute('aria-hidden'), role: d.getAttribute('role') };
+      });
+      return { sides, looks };
+    })()`);
+  const groupsOf = (side) => side.filter((x) => x !== "|");
+  const check = (where, { sides, looks }) => {
+    for (const side of sides) {
+      const first = side[0];
+      const last = side.at(-1);
+      expect(first !== "|" && last !== "|", `${where}: a divider at a side's end: ${JSON.stringify(sides)}`);
+      expect(side.every((x, i) => !(x === "|" && side[i + 1] === "|")), `${where}: a doubled divider: ${JSON.stringify(sides)}`);
+      expect(side.every((x, i) => i === 0 || x === "|" || side[i - 1] === "|"), `${where}: groups with no divider between: ${JSON.stringify(sides)}`);
+    }
+    for (const look of looks) {
+      expect(look.hidden === "true" && look.role === null, `${where}: a divider isn't only drawn: ${JSON.stringify(look)}`);
+      expect(look.share > 0.5 && look.share < 0.7 && look.mid < 1, `${where}: a divider's height: ${JSON.stringify(look)}`);
+      expect(look.left === look.right, `${where}: uneven room round a divider: ${JSON.stringify(look)}`);
+    }
+  };
+  try {
+    await open("short");
+    for (const mode of ["view", "split"]) {
+      if (mode === "split") await toMode("split");
+      await cdp("Emulation.setDeviceMetricsOverride", { width: 1100, height: 700, deviceScaleFactor: 1, mobile: false });
+      await until("1100 px", () => evaluate("innerWidth === 1100"));
+      await evaluate("new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))");
+      const wide = await layout();
+      check(`${mode} at 1100`, wide);
+      // The groups, in order, by their names, with a divider between each on a side.
+      expect(
+        JSON.stringify(wide.sides) ===
+          JSON.stringify([["File", "|", "Editing"], ["Find your way", "|", "Zoom and reading", "|", "Print and export", "|", "More"]]),
+        `${mode}: ${JSON.stringify(wide.sides)}`,
+      );
+      // What's in each: Save and Save as with the modes, Undo and Redo there in Split.
+      const members = await evaluate(`[...document.querySelectorAll('#toolbar .tool-group')].map((g) =>
+        [g.getAttribute('role'), g.getAttribute('aria-label'), [...g.querySelectorAll('button.tool')].filter((b) => !b.closest('[hidden]')).map((b) => b.getAttribute('aria-label')).join(',')])`);
+      const editing = mode === "split" ? "View,Split,Edit,Save,Save as,Undo,Redo" : "View,Split,Edit,Save,Save as";
+      const want = [
+        ["group", "File", "Open,Recent files"],
+        ["group", "Editing", editing],
+        ["group", "Find your way", "Outline,Find"],
+        ["group", "Zoom and reading", "Zoom out,Reset zoom,Zoom in,Reading width and style"],
+        ["group", "Print and export", "Print,Save as PDF,Copy"],
+      ];
+      expect(JSON.stringify(members) === JSON.stringify(want), `${mode}: ${JSON.stringify(members)}`);
+      // Narrower: groups go into ⋯ whole, and take their dividers with them.
+      for (const width of [700, 600, 560, 520, 480, 440, 400]) {
+        await cdp("Emulation.setDeviceMetricsOverride", { width, height: 700, deviceScaleFactor: 1, mobile: false });
+        await until(`${width} px`, () => evaluate(`innerWidth === ${width}`));
+        await evaluate("new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))");
+        const narrow = await layout();
+        check(`${mode} at ${width}`, narrow);
+        expect(groupsOf(narrow.sides[0]).join() === "File,Editing" && groupsOf(narrow.sides[1]).at(-1) === "More", `${mode} at ${width}: ${JSON.stringify(narrow.sides)}`);
+      }
+    }
+    // The arrow keys pass the dividers by: Right from Open's arrow is View.
+    await cdp("Emulation.setDeviceMetricsOverride", { width: 1100, height: 700, deviceScaleFactor: 1, mobile: false });
+    await until("1100 px", () => evaluate("innerWidth === 1100"));
+    await evaluate(`document.querySelector('#toolbar .split-arrow').focus()`);
+    await key("ArrowRight", { keyCode: 39 });
+    expect((await evaluate("document.activeElement.getAttribute('aria-label')")) === "View", "Right from Open's arrow");
+  } finally {
+    await cdp("Emulation.setDeviceMetricsOverride", { width: 1100, height: 800, deviceScaleFactor: 1, mobile: false });
+  }
+});
+
 await test("Undo and Redo on the strip: in Split and Edit only, greyed out with nothing to undo or redo, the focus kept in the text", async () => {
   await open("short");
   const sel = (name) => `#toolbar [data-command="${name}"]`;
