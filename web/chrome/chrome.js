@@ -118,6 +118,8 @@
     // Save: a disk. Save as: the disk, a pencil over its corner.
     save: ["M2.5 1.5h9l3 3v10h-12zM5 1.5v4h6v-4M4.5 14.5v-5h7v5"],
     "save-as": ["M7.5 14.5h-5v-13h9l3 3v2.5M5 1.5v4h6v-4M4.5 14.5v-5h4", "M9.5 15l.5-2l4-4l1.5 1.5l-4 4z"],
+    // Save as PDF: a page, an arrow going down out of it.
+    pdf: ["M8.5 14.5h-5v-13h6l3 3v4.5M9.5 1.5v3h3", "M11.5 9.5v5M9.5 12.5l2 2l2-2"],
     // Undo and Redo: an arrow turning back, and its mirror.
     undo: ["M5 3L2 6l3 3M2 6h7.5a4 4 0 0 1 0 8H7"],
     redo: ["M11 3l3 3l-3 3M14 6H6.5a4 4 0 0 0 0 8H9"],
@@ -318,6 +320,8 @@
       root.style.setProperty("--zoom", String(zoom / 100));
     }
     if (zoomLabel) zoomLabel.textContent = zoomText();
+    // Its label's width changes with it (called once the strip is built).
+    if (toolbar.isConnected) fitToolbar();
     scheduleLayout();
   }
   /** The zoom as the language writes it (window.ftl's chrome-zoom-level). */
@@ -486,8 +490,56 @@
     event.preventDefault();
     recentMenu.open();
   });
+  // Save as PDF, beside Print: File's Save as PDF… (the window's Save dialog, then the PDF).
+  const pdfButton = button(s("save-pdf"), {
+    iconName: "pdf",
+    attrs: { "data-command": "save-pdf", "aria-disabled": noDocument ? "true" : undefined },
+    onclick: noDocument ? undefined : () => send("save-pdf"),
+  });
+  const printButton = button(s("print"), { iconName: "print", shortcut: keys("Ctrl", "P"), onclick: () => window.print() });
+  const copyButton = button(s("copy"), { iconName: "copy", shortcut: keys("Ctrl", "Shift", "C"), onclick: () => copyDocument() });
+  const zoomGroup = el(
+    "div",
+    { className: "zoom", role: "group", "aria-label": s("zoom-reset") },
+    button(s("zoom-out"), { text: "−", shortcut: keys("Ctrl", "−"), onclick: () => zoomBy(-1) }),
+    zoomLabel,
+    button(s("zoom-in"), { text: "+", shortcut: keys("Ctrl", "+"), onclick: () => zoomBy(1) }),
+  );
+
+  // A narrow window: whole groups of the strip leave it, in this order, until what's left fits
+  // with room between its two sides, and show at the top of the ⋯ menu instead, doing the same
+  // (fitToolbar). Open, the modes, Save, Save as, Undo, Redo and ⋯ itself always stay.
+  const TIERS = [
+    { tools: [printButton, pdfButton, copyButton], items: () => [
+      { label: s("print"), hint: keys("Ctrl", "P"), onselect: () => window.print() },
+      { label: s("save-pdf"), disabled: noDocument, onselect: () => send("save-pdf") },
+      { label: s("copy"), hint: keys("Ctrl", "Shift", "C"), onselect: () => copyDocument() },
+    ] },
+    { tools: [zoomGroup, reading.wrap], items: () => [
+      { label: s("zoom-out"), hint: keys("Ctrl", "−"), onselect: () => zoomBy(-1) },
+      { label: s("zoom-reset"), hint: zoomText(), onselect: () => setZoom(100) },
+      { label: s("zoom-in"), hint: keys("Ctrl", "+"), onselect: () => zoomBy(1) },
+      { heading: s("reading") },
+      width("narrow"),
+      width("comfortable"),
+      width("wide"),
+      style("sans"),
+      style("serif"),
+    ] },
+    { tools: [outlineButton, findButton], items: () => [
+      {
+        label: s("outline"),
+        hint: keys("Ctrl", "Shift", "O"),
+        disabled: !outlineInMode(),
+        checked: () => outlineInMode() && !outline.hidden,
+        onselect: () => toggleOutline(),
+      },
+      { label: s("find"), hint: keys("Ctrl", "F"), onselect: () => openFind() },
+    ] },
+  ];
+  let tiersHidden = 0;
   const more = menuButton(s("more"), "more", () => [
-    { label: s("save-pdf"), disabled: noDocument, onselect: () => send("save-pdf") },
+    ...TIERS.slice(0, tiersHidden).flatMap((tier) => [...tier.items(), "-"]),
     // A window with no document has no file to open elsewhere or show (page::empty_page).
     { label: s("open-editor"), disabled: noDocument, onselect: () => send("open-editor") },
     { label: s("show-folder"), disabled: noDocument, onselect: () => send("show-folder") },
@@ -515,19 +567,41 @@
       { className: "group" },
       outlineButton,
       findButton,
-      el(
-        "div",
-        { className: "zoom", role: "group", "aria-label": s("zoom-reset") },
-        button(s("zoom-out"), { text: "−", shortcut: keys("Ctrl", "−"), onclick: () => zoomBy(-1) }),
-        zoomLabel,
-        button(s("zoom-in"), { text: "+", shortcut: keys("Ctrl", "+"), onclick: () => zoomBy(1) }),
-      ),
+      zoomGroup,
       reading.wrap,
-      button(s("print"), { iconName: "print", shortcut: keys("Ctrl", "P"), onclick: () => window.print() }),
-      button(s("copy"), { iconName: "copy", shortcut: keys("Ctrl", "Shift", "C"), onclick: () => copyDocument() }),
+      printButton,
+      pdfButton,
+      copyButton,
       more.wrap,
     ),
   );
+
+  /** The width a side of the strip needs: from its first shown part to its last, as they're
+      laid out (a side squeezed narrower than that lets them run over the other). */
+  function needed(side) {
+    const shown = [...side.children].filter((c) => !c.hidden && c.offsetWidth > 0);
+    if (!shown.length) return 0;
+    return shown.at(-1).getBoundingClientRect().right - shown[0].getBoundingClientRect().left;
+  }
+  /** Shows as many of the strip's groups as fit, hiding the rest in TIERS' order. */
+  function fitToolbar() {
+    const [left, right] = toolbar.querySelectorAll(":scope > .group");
+    const style = getComputedStyle(toolbar);
+    const room = toolbar.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    const gap = parseFloat(style.columnGap) || 8;
+    const show = (n) => {
+      tiersHidden = n;
+      TIERS.forEach((tier, i) => {
+        for (const tool of tier.tools) tool.hidden = i < n;
+      });
+    };
+    show(0);
+    while (tiersHidden < TIERS.length && needed(left) + needed(right) + gap > room) show(tiersHidden + 1);
+    // A menu of a group that has just gone closes with it.
+    if (openMenu?.menu.closest("[hidden]") && openMenu.menu !== more.menu) openMenu.close(false);
+  }
+  new ResizeObserver(() => fitToolbar()).observe(toolbar);
+  document.addEventListener("legible-mode", () => fitToolbar());
 
   // The toolbar's arrow keys move between its buttons (one tab stop each is fine too: every
   // button stays in the tab order, so the keyboard reaches everything either way).

@@ -134,8 +134,9 @@ dialog.panel {
   color: var(--text);
 }
 
-/* A tool not shown in this mode (Undo and Redo, in View). */
-.tool[hidden] {
+/* A tool not shown (Undo and Redo, in View), or a group of the strip moved into the ⋯ menu
+   in a narrow window. */
+#toolbar [hidden] {
   display: none;
 }
 
@@ -273,6 +274,11 @@ dialog.panel :is(input, select, a, pre):focus-visible {
   right: 0;
   z-index: 4;
   min-width: 200px;
+  /* Never past the window's bottom (a narrow window's ⋯ holds the strip's groups too): it
+     scrolls instead, and the item the keys move to is scrolled to. */
+  max-height: calc(100vh - 52px);
+  overflow-y: auto;
+  box-sizing: border-box;
   padding: 4px;
   background: var(--bg);
   border: 1px solid var(--rule);
