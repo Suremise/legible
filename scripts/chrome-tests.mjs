@@ -50,6 +50,12 @@ writeFileSync(
     Array.from({ length: 20100 }, (_, i) => `- Item ${i + 1}`).join("\n") +
     "\n\nThe last paragraph.\n",
 );
+// A long code block, highlighted once the page prepares it (web/doc/).
+const codeDoc = join(work, "code.md");
+writeFileSync(
+  codeDoc,
+  "# Code\n\n```js\n" + Array.from({ length: 500 }, (_, i) => `const value${i + 1} = ${i + 1};`).join("\n") + "\n```\n",
+);
 const sources = [
   join(docfiles, "showcase.md"),
   join(repo, "scripts", "chrome-tests", "find.md"),
@@ -59,6 +65,7 @@ const sources = [
   join(repo, "scripts", "chrome-tests", "notes-read-only.md"),
   longDoc,
   manyDoc,
+  codeDoc,
 ];
 // Each page's Markdown, for the stand-in window to give the editor.
 const sourceOf = Object.fromEntries(sources.map((file) => [basename(file, ".md"), file]));
@@ -2606,6 +2613,37 @@ await test("the place kept between the modes: View → Edit → type → View, a
   await pumped("the text at Section 25", async () => Math.abs((await textTop()) - lineOf(25)) <= 1);
   await toMode("view");
   await restsAt(25, "View at Section 25 after Edit, unchanged");
+});
+
+await test("the place in a highlighted code block carried from View, as the file opened, into the text", async () => {
+  await open("code");
+  // The page's highlighting is there: a render just shown has none of it.
+  await until("the code to be highlighted", () => evaluate(`!!document.querySelector("#document pre code span")`));
+  // 60% of the way through the block, the code line at the top under the chrome found by its text.
+  const shown = await evaluate(`(() => {
+    const pre = document.querySelector("#document pre");
+    const edge = LegibleChrome.top() + 8;
+    const rect = pre.getBoundingClientRect();
+    window.scrollBy({ top: rect.top + 0.6 * rect.height - edge, behavior: "instant" });
+    const r = pre.getBoundingClientRect();
+    const range = document.caretRangeFromPoint(r.left + 24, edge);
+    // The text node's own line: count the newlines before it in the block.
+    const before = document.createRange();
+    before.setStart(pre.querySelector("code"), 0);
+    before.setEnd(range.startContainer, range.startOffset);
+    return before.toString().split("\\n").length;
+  })()`);
+  // Line 1 '# Code', 2 blank, 3 the fence: the block's first line is line 4.
+  const expected = shown + 3;
+  await toMode("edit");
+  await pumped(`the text at line ${expected}`, async () => {
+    const top = await evaluate(`(() => {
+      const v = LegibleEditor.view();
+      const top = v.scrollDOM.getBoundingClientRect().top - v.documentTop;
+      return v.state.doc.lineAt(v.lineBlockAtHeight(Math.max(0, top)).from).number;
+    })()`);
+    return Math.abs(top - expected) <= 1;
+  });
 });
 
 console.log(`Mermaid's inline styles refused by the CSP while laying out: ${mermaidStyleReports}.`);

@@ -747,15 +747,14 @@
   const viewEdge = () => (window.LegibleChrome?.top?.() ?? 40) + 8;
 
   /** The line at the top of the page in View; or, in a document rendered without its lines,
-      the way to the element there (`path`: the indices of the children to take from #document
-      down, and how far into the last it is), to find its lines by in a render that has them. */
+      the way to the element there (`path`: the index of each child to take from #document
+      down, and how far into it the top is), to find its lines by in a render that has them. */
   function viewPlace() {
     if (document.scrollingElement.scrollTop <= 0) return { line: 0 };
     const edge = viewEdge();
     const line = lineAtEdge(edge);
     if (line !== null) return { line };
     const path = [];
-    let fraction = 0;
     let node = doc;
     // The blocks go down the page in order: a binary search finds the one at the edge, so a
     // document of thousands of blocks measures a dozen or so. Inside it, each child is looked at.
@@ -770,9 +769,9 @@
     if (low >= kids.length) return { line: null };
     for (let index = low; ; ) {
       const rect = node.children[index].getBoundingClientRect();
-      path.push(index);
+      const fraction = rect.height ? Math.min(1, Math.max(0, (edge - rect.top) / rect.height)) : 0;
+      path.push({ index, fraction });
       node = node.children[index];
-      fraction = rect.height ? Math.min(1, Math.max(0, (edge - rect.top) / rect.height)) : 0;
       if (rect.top > edge) break; // the first below the edge: its top
       index = [...node.children].findIndex((child) => {
         const r = child.getBoundingClientRect();
@@ -780,22 +779,24 @@
       });
       if (index < 0) break;
     }
-    return { path, fraction };
+    return { path };
   }
 
   /** The line `place.path` leads to in the document as it is now: the deepest element on the
-      way that has its lines (and how far into it, if it's the last). */
-  function lineByPath({ path, fraction }) {
+      way that has its lines, as far into them as the top was into it. What the page added to
+      the document as it prepared it (code's highlighting, say) isn't in a render just shown, so
+      the way can end early: the share of the element it ends at still holds the place. */
+  function lineByPath({ path }) {
     let node = doc;
     let line = null;
-    for (const [depth, index] of path.entries()) {
+    for (const { index, fraction } of path) {
       node = node.children[index];
       if (!node) break;
       const m = /^(\d+):\d+-(\d+):\d+$/.exec(node.dataset?.sourcepos ?? "");
       if (!m) continue;
       const start = Number(m[1]);
       const end = Math.max(start, Number(m[2]));
-      line = depth === path.length - 1 ? start + fraction * (end - start + 1) : start;
+      line = start + fraction * (end - start + 1);
     }
     return line;
   }

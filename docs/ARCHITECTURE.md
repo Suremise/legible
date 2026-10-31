@@ -915,8 +915,11 @@ since the process was created; "Performance", below, has the full record):
     are laid out (Long documents); the reader's own scrolling, keys or pointer let it go. Going
     from View, the line at the top of the page is put at the top of the text, and Split's pane
     follows the text. The file as it opened is rendered without its lines, so there the way to
-    the element at the top (each child's index from `#document` down) is kept instead, and
-    followed in the first render that has them. The page's layout for each is `mode-split` or `mode-edit` on `<html>`
+    the element at the top (each child's index from `#document` down, and how far into it the
+    top is) is kept instead, and followed in the first render that has them, to the deepest
+    element on the way with its lines. That render isn't prepared yet (code has no
+    highlighting), so the way can end early: the share of the element it ends at keeps the
+    place. The page's layout for each is `mode-split` or `mode-edit` on `<html>`
     (`editor.css`): in Split the document's pane scrolls by itself. The editor's pane is as tall
     as its top and bottom leave (`codemirror.css`'s `height: 100%` on its host is overruled, so
     its last lines are never below the window).
