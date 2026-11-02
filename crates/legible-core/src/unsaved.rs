@@ -195,20 +195,31 @@ mod tests {
         assert!(copy_for(temp.path(), 0x0f, document) < copy_for(temp.path(), 0x10, document));
     }
 
+    /// A path as this system writes one: `C:\Docs\notes.md` on Windows, `/Docs/notes.md`
+    /// elsewhere (where `\` isn't a separator, so a Windows path is all one file name).
+    fn native(windows: &str) -> PathBuf {
+        if cfg!(windows) {
+            PathBuf::from(windows)
+        } else {
+            PathBuf::from(windows[2..].replace('\\', "/"))
+        }
+    }
+
     #[test]
     fn each_document_has_its_own_copy_whatever_the_case_of_its_path() {
-        let folder = Path::new(r"C:\Legible\Recovery");
-        let a = copy_for(folder, 1, Path::new(r"C:\Docs\notes.md"));
+        let folder = native(r"C:\Legible\Recovery");
+        let folder = folder.as_path();
+        let a = copy_for(folder, 1, &native(r"C:\Docs\notes.md"));
         let path_hash = |p: &Path| p.to_string_lossy().split('-').nth(1).unwrap().to_owned();
         assert_eq!(
             path_hash(&a),
-            path_hash(&copy_for(folder, 1, Path::new(r"c:\docs\NOTES.md")))
+            path_hash(&copy_for(folder, 1, &native(r"c:\docs\NOTES.md")))
         );
-        assert_eq!(a, copy_for(folder, 1, Path::new(r"c:\docs\notes.md")));
-        assert_ne!(a, copy_for(folder, 1, Path::new(r"C:\Other\notes.md")));
-        assert_ne!(a, copy_for(folder, 2, Path::new(r"C:\Docs\notes.md")));
+        assert_eq!(a, copy_for(folder, 1, &native(r"c:\docs\notes.md")));
+        assert_ne!(a, copy_for(folder, 1, &native(r"C:\Other\notes.md")));
+        assert_ne!(a, copy_for(folder, 2, &native(r"C:\Docs\notes.md")));
         // A name that can't be a file name is kept out of the copy's.
-        let odd = copy_for(folder, 1, Path::new(r"C:\Docs\a:b*?.md"));
+        let odd = copy_for(folder, 1, &native(r"C:\Docs\a:b*?.md"));
         assert!(
             odd.file_name()
                 .unwrap()

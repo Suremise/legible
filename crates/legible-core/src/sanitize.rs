@@ -459,12 +459,13 @@ mod tests {
 
     const DOC_BASE: &str = "https://legible-doc.localhost/";
 
-    /// An absolute folder on either system.
+    /// An absolute folder on either system, named as [`file_url`] names it: off Windows a path's
+    /// case counts, so the two must agree letter for letter.
     fn base() -> PathBuf {
         if cfg!(windows) {
             PathBuf::from(r"C:\Docs\Report")
         } else {
-            PathBuf::from("/docs/report")
+            PathBuf::from("/docs/Report")
         }
     }
 
@@ -568,6 +569,19 @@ mod tests {
         assert!(html.contains("<a href=\"https://example.com/x\""));
         assert!(
             html.contains("<a rel=\"noopener noreferrer\">ftp</a>"),
+            "{html}"
+        );
+    }
+
+    /// A path's case counts where the system's does: on Windows a link to the folder in another
+    /// case is inside it; elsewhere it's another folder.
+    #[test]
+    fn a_file_link_in_another_case_is_inside_only_on_windows() {
+        let other_case = file_url("REPORT/notes/other.md");
+        let html = clean(&format!("<a href=\"{other_case}\">in</a>")).html;
+        assert_eq!(
+            html.contains(&format!("<a href=\"{other_case}\"")),
+            cfg!(windows),
             "{html}"
         );
     }
