@@ -3,9 +3,28 @@ name: CI
 # On every push to main, so a change is checked before a release, and by hand from the Actions
 # tab. Pull requests don't run it. A version tag's release (release.yml) runs the checks and
 # tests again before it builds.
+#
+# A push that changes only the files below doesn't run it: none of them is built, shipped or read
+# by a test or a build step. Kept out of this list on purpose: CHANGELOG.md, LICENSE and
+# THIRD-PARTY-NOTICES.txt (compiled into the exe for About, and the release reads the changelog),
+# docs/screenshots/project-update.md (the README pictures' document), and everything else.
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - README.md
+      - CONTRIBUTING.md
+      - SECURITY.md
+      - CODE_OF_CONDUCT.md
+      - AGENTS.md
+      - CLAUDE.md
+      - docs/ARCHITECTURE.md
+      - docs/RELEASING.md
+      - docs/TESTING.md
+      - docs/user-guide.md
+      - docs/screenshots/*.png
+      - .github/ISSUE_TEMPLATE/**
+      - .github/pull_request_template.md
   workflow_dispatch:
 
 permissions:

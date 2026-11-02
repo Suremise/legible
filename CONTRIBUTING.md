@@ -39,7 +39,8 @@ everything cargo built). docs/TESTING.md, Disk space, has the numbers.
 A pull request must pass all of these, so run them before you open one: nothing runs on GitHub
 for a pull request. On GitHub, CI runs on every push to main, and by hand from the Actions tab:
 the Rust checks and the JavaScript check on Windows, and `legible-core`'s tests on Linux too. A
-version tag runs the checks again before the release is built. Run the two browser tests yourself
+push that changes only docs and pictures (the list in `ci.yml`) doesn't run it. A version tag runs
+the checks again before the release is built. Run the two browser tests yourself
 whenever you change `web/` (docs/TESTING.md says which).
 
 ## How the code is laid out

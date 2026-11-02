@@ -38,6 +38,8 @@ Windows SmartScreen warns about both (see the checklist).
    removes the workspace crates' dev and test builds, so the next dist build stays quick and the
    checkout doesn't grow by gigabytes (docs/TESTING.md, Disk space).
    CI runs on GitHub on every push to main: fmt, clippy, the tests, and `legible-core` on Linux.
+   A push of only docs and pictures (the list in `ci.yml`) doesn't run it, and has no run to wait
+   for; tag a commit whose last code change has a green run.
 4. **Commit, push and tag** (only with the maintainer's say-so): commit and push main, and wait
    for its CI run to pass; then `git tag v<version>` on that commit and push the tag.
    `release.yml` checks the tag matches the version, runs `cargo deny check`, the JavaScript
