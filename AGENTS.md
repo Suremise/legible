@@ -36,6 +36,15 @@ message the user sent).
 - **If you can't do it that way,** don't drive the real UI: prove it with tests, and say so in
   your summary of the change.
 
+**Commits:** each change lands as one squashed commit with a public message: a summary line, then
+what changed and why, in plain words. The message's *text* names no card or issue numbers, no
+people, no review rounds, and nothing about the tools or agents that made it.
+- **The `Co-Authored-By: Claude …` trailer stays on every commit.** It's honest attribution, in
+  GitHub's standard form, and the rule above is about the message's text, not the trailer.
+- **Never strip it,** and never rebuild or rewrite commits to remove it, before a push or at any
+  other time.
+
 Probes, logs and scratch files go in your scratchpad or a temp folder, never in the repository or
 beside a checkout. Personal, machine-specific notes belong in `CLAUDE.local.md` (Claude Code reads
-it; keep it out of git), not here. The repository has no remote yet: never push.
+it; keep it out of git), not here. Pushing, tagging and publishing a release each need the
+maintainer's go-ahead at the time: never push without it.
