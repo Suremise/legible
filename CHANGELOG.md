@@ -6,12 +6,21 @@ All notable changes to Legible are recorded here. The format is based on
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-02
+
+Legible can now tell you when a new version is out, if you'd like it to.
+
+**Not signed yet:** as with earlier versions, Windows SmartScreen may warn the first time you run
+the installer or the exe. Check the download against the release's `SHA256SUMS.txt` first, and if
+it matches, choose **More info**, then **Run anyway**.
+
 ### Added
 
 - **Check for updates,** off until you turn it on in Settings > General > Updates. Then Legible
   asks GitHub for its latest version straight away, each time it starts, and when you choose
-  Check now or Help > Check for updates, and a bar tells you when there's a newer one, with a link to its release page.
-  It sends nothing about you or your documents, and never downloads or installs anything.
+  Check now or Help > Check for updates, and a bar tells you when there's a newer one, with a
+  link to its release page. It sends nothing about you or your documents, and never downloads
+  or installs anything.
 
 ## [0.2.0] - 2026-10-31
 

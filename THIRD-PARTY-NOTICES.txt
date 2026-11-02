@@ -1,4 +1,4 @@
-THIRD-PARTY NOTICES FOR LEGIBLE 0.2.0
+THIRD-PARTY NOTICES FOR LEGIBLE 0.3.0
 
 Legible is under the MIT licence (LICENSE, beside this file). It is built from the
 third-party Rust crates in part 1, with Microsoft's C runtime linked in (at the end of

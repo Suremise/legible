@@ -1266,7 +1266,7 @@ checksum = "20870f649af7073d53e38067b2a84312175d56ea15217e1b15bc83506ec50afb"
 
 [[package]]
 name = "legible"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "embed-resource",
  "legible-core",
@@ -1278,7 +1278,7 @@ dependencies = [
 
 [[package]]
 name = "legible-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "ammonia",
  "caseless",
@@ -1296,7 +1296,7 @@ dependencies = [
 
 [[package]]
 name = "legible-win"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "embed-resource",
  "legible-core",
