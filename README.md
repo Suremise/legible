@@ -2,6 +2,7 @@
 
 # Legible
 
+[![CI](https://github.com/Suremise/legible/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Suremise/legible/actions/workflows/ci.yml)
 [![Release](https://github.com/Suremise/legible/actions/workflows/release.yml/badge.svg)](https://github.com/Suremise/legible/actions/workflows/release.yml)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 

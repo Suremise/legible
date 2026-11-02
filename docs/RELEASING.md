@@ -37,11 +37,11 @@ Windows SmartScreen warns about both (see the checklist).
    checked, run `pwsh scripts/clean-build.ps1`: it keeps `target\release` and `target\dist`, and
    removes the workspace crates' dev and test builds, so the next dist build stays quick and the
    checkout doesn't grow by gigabytes (docs/TESTING.md, Disk space).
-   Nothing runs on GitHub for a push: to run CI's checks there too (fmt, clippy, the tests, and
-   `legible-core` on Linux), start CI by hand from the Actions tab.
-4. **Commit, tag and push** (only with the maintainer's say-so): `git tag v<version>` and push
-   the tag. `release.yml` checks the tag matches the version, runs `cargo deny check`, the
-   JavaScript check and the tests, builds the exe, the MSI, the zip and the checksums, and
+   CI runs on GitHub on every push to main: fmt, clippy, the tests, and `legible-core` on Linux.
+4. **Commit, push and tag** (only with the maintainer's say-so): commit and push main, and wait
+   for its CI run to pass; then `git tag v<version>` on that commit and push the tag.
+   `release.yml` checks the tag matches the version, runs `cargo deny check`, the JavaScript
+   check and the tests, builds the exe, the MSI, the zip and the checksums, and
    **drafts** a GitHub release with them, its notes the version's section of `CHANGELOG.md`
    (it fails if there isn't one).
 5. **Run the manual checklist** below on the draft's files, on a test machine or account.

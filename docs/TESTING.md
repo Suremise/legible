@@ -34,8 +34,8 @@ repeats something many times to catch a rare race, is marked `#[ignore = "stress
 quick version in the default run, and run by hand with `--run-ignored only`.
 
 **The vendored JavaScript:** `pwsh scripts/fetch-js.ps1 -VerifyOnly` checks the bundles against
-their pins and their licence audit (docs/ARCHITECTURE.md, Web assets). It runs on GitHub on a version tag,
-and in CI when that's started by hand from the Actions tab.
+their pins and their licence audit (docs/ARCHITECTURE.md, Web assets). It runs on GitHub in CI, on
+every push to main, and again on a version tag.
 
 ## Tests that take turns
 

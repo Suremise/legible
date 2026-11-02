@@ -1,8 +1,11 @@
 name: CI
 
-# Only by hand, from the Actions tab. A version tag's release (release.yml) runs the checks and
-# tests before it builds.
+# On every push to main, so a change is checked before a release, and by hand from the Actions
+# tab. Pull requests don't run it. A version tag's release (release.yml) runs the checks and
+# tests again before it builds.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
