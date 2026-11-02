@@ -7,8 +7,8 @@ its features and principles) is the starting point; this file records how it's b
 
 | Path | What |
 |---|---|
-| `crates/legible-core` | Platform-free: rendering Markdown to safe HTML, the clipboard's HTML, saving, the strings (`i18n`) and the embedded web assets (`assets`). Builds and tests on Linux too (CI checks it). |
-| `crates/legible-win` | Windows only (`cfg(windows)`): where Legible keeps its files (`paths`), its logs (`logging`), the document windows and WebView2 (`shell`, `page`, `links`, `confine`, `placement`), one process per user (`instance`), the Win32 calls (`win32`, the only module allowed `unsafe`), the clipboard, and the file associations (`associations`). |
+| `crates/legible-core` | Platform-free: rendering Markdown to safe HTML, the clipboard's HTML, saving, the strings (`i18n`), the embedded web assets (`assets`) and the update check's versions (`update`). Builds and tests on Linux too (CI checks it). |
+| `crates/legible-win` | Windows only (`cfg(windows)`): where Legible keeps its files (`paths`), its logs (`logging`), the document windows and WebView2 (`shell`, `page`, `links`, `confine`, `placement`), one process per user (`instance`), the Win32 calls (`win32`, the only module allowed `unsafe`), the clipboard, the file associations (`associations`) and the opt-in update check (`update`). |
 | `crates/legible` | The exe (`windows_subsystem = "windows"`): starts up and wires the two together. Its `build.rs` compiles in the manifest (`res/legible.exe.manifest`), the app icon and the version info. |
 | `assets/` | The app icon and the `.md` file icon, drawn by `assets/export.py` (assets/README.md). |
 | `web/doc/`, `web/chrome/`, `web/editor/` | Legible's own CSS, JavaScript and HTML: the document, the toolbar/outline/find, the editor. Compiled into the exe. |
@@ -18,7 +18,8 @@ its features and principles) is the starting point; this file records how it's b
 
 **The rules every change keeps:** platform-free code in `legible-core`, Windows code in
 `legible-win`; user-visible strings through Fluent; everything shipped MIT or equally permissive
-(below), with system fonts only; no network and no telemetry; tests use temp folders only.
+(below), with system fonts only; no network (the opt-in update check is the one exception) and no
+telemetry; tests use temp folders only.
 
 ## The parser
 
@@ -702,7 +703,8 @@ since the process was created; "Performance", below, has the full record):
     `setting <key> <value>` (checked against the known
     keys and values, then saved and sent to every window as `LegibleChrome.apply(...)`; a new
     default zoom changes no open window's zoom), `about`, `about-copy` and `reading` (About,
-    below), `recent` and `open-recent` (Recent files, below), and live reload's and the
+    below), `recent` and `open-recent` (Recent files, below), `updates`, `update-check`,
+    `update-open` and `update-close` (The update check, below), and live reload's and the
     editor's (above and below). A save that fails, or a folder that can't be written to, is
     said in Settings (`LegibleChrome.saveFailed`).
   - **About Legible** (`about`, `shell::about`; Help → About Legible or
@@ -728,7 +730,8 @@ since the process was created; "Performance", below, has the full record):
       opens a web or mail link as anywhere and a path or `file:` link, with nothing to place
       it by, does nothing. The dialog fits the window, and only its text scrolls.
     - **Privacy:** "No telemetry", and that Legible goes online only for pictures the reader
-      allows.
+      allows and, if they turn on Check for updates, one request to GitHub for its latest
+      version that sends nothing about them or their files.
   - **Recent files** (`recent`): the ten files opened last, newest first, by canonical path;
     every open that works adds one (a double-click, a later launch, Ctrl+O, a link, a drop, a
     recent file). Kept in `recent.txt` in Legible's folder (written by temp-and-rename, a path
@@ -821,8 +824,38 @@ since the process was created; "Performance", below, has the full record):
       clipboard only by hand (`tests/clipboard.rs`, ignored: it overwrites what's on it);
       `cargo run -p legible-win --example pdf-check` prints the showcase through the production
       `PrintToPdf` and checks the PDF.
+  - **The update check** (`update`, `shell::updates`, `win32::http`;
+    `legible_core::update`): **off by default, and Legible's one network call of its own**
+    (the reader's decision: an update notice can protect against worse bugs). Settings >
+    General > Updates has its checkbox, a hint saying word for word what it sends, Check now
+    (as Help > Check for updates, both only while it's on) and a line saying what the last
+    check found.
+    - **When:** once as Legible starts (the process: later windows don't ask again), once when
+      it's turned on, and each time the reader asks; never while a check is under way, and
+      never while it's off (`update::Updates::start`). Turned off, what was found goes from
+      every window, and an answer still on its way is dropped: each request is numbered, and only
+      the one under way has its answer taken, so one from before an off and on never passes for
+      the next.
+    - **What's sent:** `GET https://github.com/Suremise/legible/releases/latest` with redirects
+      off, through WinHTTP (part of Windows: no HTTP or TLS crate ships), as `Legible/<version>`,
+      on a thread of its own with a 15 s timeout a step. GitHub's redirect's `Location` names the
+      latest release's tag (`…/releases/tag/v0.3.0`); `legible_core::update` takes it only if it's
+      this project's release page, and compares its version with this one's (a pre-release comes
+      before its release). No API, no JSON, nothing downloaded or installed.
+    - **What it shows:** a newer release gets a bar in every window (`#update-bar`, under the
+      default app's): See what's new opens that release's page, as GitHub named it (never an
+      address from the page), in the browser; Close hides it in every window till Legible starts
+      again, or the reader asks again. A window that asked is told the latest or why the check
+      failed (`notice`): a timeout and no connection in Legible's words, anything else in
+      Windows' or by its number (WinHTTP's own errors have no system text). A check at start
+      that fails says nothing but Settings' line.
+    - **Tests:** the window's (`tests/shell.rs`) answer through the harness's stand-in
+      (`StandIn::update`), so a test's shell never goes online, and `check_latest` refuses in a
+      quiet process too; `win32::http`'s against a server of the test's own on the loopback
+      address (the request sends only the host, the agent and the connection header); the
+      chrome's in `scripts/chrome-tests.mjs`.
   - **Pictures from the internet** (`consent`, `win32::request_filter`): **only with the
-    reader's say-so, and Legible has no network code of its own:** WebView2
+    reader's say-so, and Legible has no network code for them:** WebView2
     fetches them, held to it two ways.
     - **What's asked for** is each `<img data-remote-src>` in Rust's own render (never an
       address from the page). Only `https:` pictures on a host a CSP can name are offered;
@@ -920,7 +953,8 @@ since the process was created; "Performance", below, has the full record):
     shortened in the middle past 40 characters) is `open-recent` with the list's token, as a
     pick from the toolbar's list is. Print, Find, Replace, Copy document,
     the modes, Outline, the zoom, the reading width, the theme, Settings and About call the
-    page's own function for each (`LegibleChrome.command`). Find, as Ctrl+F, is the editor's in
+    page's own function for each (`LegibleChrome.command`). Help's Check for updates is the
+    page's `update-check` (Settings' Check now), enabled only while the check is on. Find, as Ctrl+F, is the editor's in
     Edit, or in Split with the text focused, and the page's otherwise. Undo, Redo, Cut, Copy,
     Paste and Select all are their shortcuts' keys, sent to the window's own WebView through
     its DevTools protocol (`Input.dispatchKeyEvent`): the page, CodeMirror and the browser's
@@ -1372,9 +1406,11 @@ width, default zoom, pictures from the internet (Ask, Never, Always), the outlin
 Always, Never), the editor's font (the reading style, or Monospace), the editor's share in
 Split (20–80%, 50 by default), and the Comfort group's three, each on by default: Zoom with
 Ctrl + mouse wheel, Open windows at their last size and position, and Remember where I was in
-each file. A missing or nonsensical value is its default; lines it doesn't know are kept (an
-earlier copy's `check_for_updates` among them: Legible has no update check, so it offers no such
-setting). Saved through a temporary file renamed over the old one.
+each file; and Check for updates (`check_updates`, off: The update check, above). A missing or
+nonsensical value is its default; lines it doesn't know are kept. An early copy's
+`check_for_updates`, a setting with no check behind it, is one of those: the check's own key is
+another, so a file from then never turns it on. Saved through a temporary file renamed over the
+old one.
 
 **Unsaved edits** kept as Windows ended the session: `Recovery\` in that folder, one copy per
 document until the reader chooses (Saving, above). **Where windows go and where the reader was**

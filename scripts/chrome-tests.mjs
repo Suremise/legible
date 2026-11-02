@@ -766,7 +766,7 @@ await test("Settings: a modal that keeps focus, sends each change and shows a fa
 const SETTINGS_TABS = {
   appearance: ["theme", "style", "width", "zoom", "editor-font"],
   reading: ["outline", "status-bar", "remote-images", "wheel-zoom", "reopen-windows", "remember-place"],
-  general: ["default-app"],
+  general: ["check-updates", "default-app"],
 };
 const openSettings = () =>
   evaluate(`[...document.querySelectorAll('.menu-item')].find((m) => m.textContent.includes('Settings')).click()`);
@@ -938,7 +938,7 @@ await test("About: its layout, the window's facts, Copy, and the licence, notice
   );
   expect(name[0] === name[1] && name[1] === "Legible", `the app's name: ${JSON.stringify(name)}`);
   const text = await evaluate(`${about}.textContent`);
-  for (const words of ["A reader that makes Markdown legible", "Open source under the MIT License. Includes third-party software.", "No telemetry. Legible goes online only for pictures you allow.", "isn't affiliated with, endorsed or sponsored by Microsoft"]) {
+  for (const words of ["A reader that makes Markdown legible", "Open source under the MIT License. Includes third-party software.", "No telemetry. Legible goes online only for pictures you allow and, if you turn on Check for updates in Settings, to ask GitHub for its latest version: one request that sends nothing about you or your files.", "isn't affiliated with, endorsed or sponsored by Microsoft"]) {
     expect(text.includes(words), `About doesn't say ${JSON.stringify(words)}: ${text}`);
   }
   // The icon, Legible's own, loads under the page's CSP.
@@ -987,11 +987,12 @@ await test("About: its layout, the window's facts, Copy, and the licence, notice
   // OK closes it.
   await evaluate(`${about}.querySelector('.default').click()`);
   expect(!(await evaluate(`${about}.open`)), "OK didn't close About");
-  // The privacy line is the same whatever the settings, an old copy's check-for-updates among them.
-  await evaluate(`LegibleChrome.apply({ ...JSON.parse(document.getElementById("legible-settings").textContent), "check-for-updates": true })`);
+  // The privacy line is the same whatever the settings: the update check on, or an old copy's
+  // check-for-updates.
+  await evaluate(`LegibleChrome.apply({ ...JSON.parse(document.getElementById("legible-settings").textContent), "check-for-updates": true, "check-updates": true })`);
   await evaluate("LegibleChrome.command('about')");
   expect(
-    (await evaluate("document.querySelector('.about-privacy').textContent")) === "No telemetry. Legible goes online only for pictures you allow.",
+    (await evaluate("document.querySelector('.about-privacy').textContent")) === "No telemetry. Legible goes online only for pictures you allow and, if you turn on Check for updates in Settings, to ask GitHub for its latest version: one request that sends nothing about you or your files.",
     "the privacy line",
   );
   await key("Escape", { keyCode: 27 });
@@ -1528,6 +1529,67 @@ await test("the default app: the bar offers it until it's taken or dismissed, an
   await evaluate(`window.sent.length = 0; [...document.querySelectorAll(".default-app button")].find((b) => !b.hidden && b.textContent.startsWith("Register")).click()`);
   expect((await sent()).includes("default-app-register"), JSON.stringify(await sent()));
   await key("Escape", { keyCode: 27 });
+});
+
+await test("updates: off, nothing is asked or offered; on, Settings checks, says what it found, and a newer one gets a bar", async () => {
+  await open("short");
+  expect((await sent()).includes("updates"), "the page didn't ask what's known of updates");
+  const bar = `document.getElementById("update-bar")`;
+  const chromeTop = () => evaluate(`parseFloat(getComputedStyle(document.body).paddingTop)`);
+  const state = (s) => evaluate(`LegibleChrome.updates(${JSON.stringify(s)})`);
+  expect(await evaluate(`${bar}.hidden`), "the bar showed before the window said anything");
+
+  // Settings, General: the checkbox (off), what it sends, and Check now, unusable while off.
+  await openSettings();
+  await evaluate(`document.getElementById("settings-tab-general").click()`);
+  const section = () =>
+    evaluate(`(() => {
+      const s = document.querySelector(".updates");
+      const box = s.querySelector("input[name=check-updates]");
+      const check = [...s.querySelectorAll("button")].find((b) => b.textContent === "Check now");
+      const status = s.querySelector(".update-status");
+      return { checked: box.checked, described: document.getElementById(box.getAttribute("aria-describedby"))?.textContent ?? "",
+               disabled: check.disabled, status: status.hidden ? "" : status.textContent };
+    })()`);
+  let shown = await section();
+  expect(!shown.checked && shown.disabled && shown.status === "", `off: ${JSON.stringify(shown)}`);
+  expect(shown.described.includes("github.com") && shown.described.includes("never downloads or installs"), `what it sends: ${shown.described}`);
+  await evaluate(`window.sent.length = 0; document.querySelector(".updates button").click()`);
+  expect(!(await sent()).includes("update-check"), "Check now asked while the check is off");
+
+  // Turned on: sent as a setting; the window checks (the page shows it under way), then says.
+  await evaluate(`window.sent.length = 0; document.getElementById("settings-check-updates").click()`);
+  expect((await sent()).includes("setting\ncheck-updates\ntrue"), JSON.stringify(await sent()));
+  await evaluate(`LegibleChrome.apply({ ...JSON.parse(document.getElementById("legible-settings").textContent), "check-updates": true })`);
+  await state({ on: true, checking: true, status: "Checking for updates…", bar: "" });
+  shown = await section();
+  expect(shown.checked && shown.disabled && shown.status === "Checking for updates…", `checking: ${JSON.stringify(shown)}`);
+  await state({ on: true, checking: false, status: "Legible 0.3.0 is the latest version.", bar: "" });
+  shown = await section();
+  expect(!shown.disabled && shown.status === "Legible 0.3.0 is the latest version.", `checked: ${JSON.stringify(shown)}`);
+  expect(await evaluate(`${bar}.hidden`), "a bar with nothing newer");
+  await evaluate(`window.sent.length = 0; [...document.querySelectorAll(".updates button")].find((b) => b.textContent === "Check now").click()`);
+  expect(JSON.stringify(await sent()) === JSON.stringify(["update-check"]), JSON.stringify(await sent()));
+  await key("Escape", { keyCode: 27 });
+
+  // A newer one: the bar, under the toolbar, with the document below it; its buttons ask the window.
+  await state({ on: true, checking: false, status: "Legible 9.0.0 is available.", bar: "Legible 9.0.0 is available." });
+  expect(await evaluate(`!${bar}.hidden && ${bar}.getAttribute("role") === "region" && ${bar}.textContent.startsWith("Legible 9.0.0 is available.")`), "no bar");
+  expect((await evaluate(`${bar}.getBoundingClientRect().top`)) === 40, "the bar isn't under the toolbar");
+  await until("the document to make room", async () => (await chromeTop()) > 40);
+  await evaluate(`window.sent.length = 0; ${bar}.querySelectorAll("button")[0].click()`);
+  expect(JSON.stringify(await sent()) === JSON.stringify(["update-open"]), JSON.stringify(await sent()));
+  await evaluate(`window.sent.length = 0; ${bar}.querySelectorAll("button")[1].click()`);
+  expect(JSON.stringify(await sent()) === JSON.stringify(["update-close"]), JSON.stringify(await sent()));
+  // Under the default app's bar when both show.
+  await evaluate(`LegibleChrome.defaultApp({ offer: true, registered: true, isDefault: false, portable: false })`);
+  await until("the bars to stack", async () =>
+    evaluate(`Math.abs(${bar}.getBoundingClientRect().top - document.getElementById("default-bar").getBoundingClientRect().bottom) < 1`));
+  // The window took it away (closed, or the check turned off): the document moves back up.
+  await evaluate(`LegibleChrome.defaultApp({ offer: false, registered: true, isDefault: true, portable: false })`);
+  await state({ on: false, checking: false, status: "", bar: "" });
+  expect(await evaluate(`${bar}.hidden`), "the bar stayed");
+  await until("the document to move back up", async () => (await chromeTop()) === 40);
 });
 
 await test("the Outline button is off and unusable in Split and Edit, and the outline comes back in View", async () => {

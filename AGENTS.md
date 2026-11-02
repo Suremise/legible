@@ -14,10 +14,10 @@ CLI runs it: Codex reads this file, and Claude Code reads it through `CLAUDE.md`
 
 **The rules every change keeps:** platform-free code in `legible-core`, Windows code in
 `legible-win`; user-visible strings through Fluent (`locales/en/`); everything shipped MIT or
-equally permissive, with system fonts only; no network and no telemetry; tests use temp folders
-only. A JavaScript bundle changes only through `third_party/js/VERSIONS` and the licence audit
-(`node scripts/audit-js-licences.mjs`); a licence beyond MIT, BSD, ISC or Apache-2.0 stops the
-work for the maintainer's decision.
+equally permissive, with system fonts only; no network (the opt-in update check is the one
+exception) and no telemetry; tests use temp folders only. A JavaScript bundle changes only
+through `third_party/js/VERSIONS` and the licence audit (`node scripts/audit-js-licences.mjs`); a
+licence beyond MIT, BSD, ISC or Apache-2.0 stops the work for the maintainer's decision.
 
 **Disk space** ([docs/TESTING.md](docs/TESTING.md#disk-space)): cargo never removes old test
 exes, so a checkout's `target` grows by gigabytes over a few changes.

@@ -28,7 +28,9 @@ use std::time::{Duration, Instant};
 
 use legible_core::i18n::tr;
 use legible_core::save;
+use legible_core::tr;
 use legible_core::unsaved::{self, Kept};
+use legible_core::update::{Outcome, Version};
 use legible_win::menu::{self, Mode};
 use legible_win::paths::AppPaths;
 use legible_win::quiet;
@@ -229,6 +231,10 @@ const CASES: &[(&str, Case)] = &[
     (
         "the same file opened again while an earlier read of it is late: the late read is out of date",
         an_earlier_read_is_out_of_date,
+    ),
+    (
+        "the update check: off, nothing is asked; on, a newer release's bar in every window, Close takes it from all, and a window that asks is told",
+        update_check,
     ),
 ];
 
@@ -2121,6 +2127,109 @@ fn canonical(file: &Path) -> Result<PathBuf> {
 }
 
 /// `text` as `name`.md, in a folder of the case's own.
+fn update_check(d: &Driver, docs: &Path) -> Result<()> {
+    let first = document(docs, "update-one", b"# One\n")?;
+    let second = document(docs, "update-two", b"# Two\n")?;
+    let a = d.open(&first)?;
+    let b = d.open(&second)?;
+    for w in [a, b] {
+        d.until(w, "the chrome to be ready", "!!window.LegibleChrome?.ready")?;
+    }
+    let bar_shows = |text: &str| {
+        format!(
+            "!document.getElementById('update-bar').hidden \
+             && document.getElementById('update-bar').textContent.startsWith({})",
+            json_string(text)
+        )
+    };
+    const BAR_HIDDEN: &str = "document.getElementById('update-bar').hidden";
+    let checks = d.update_checks();
+    // Off (the default): asking checks nothing, and Help's Check for updates is disabled.
+    d.eval(a, "window.ipc.postMessage('update-check')")?;
+    d.eval(a, "1")?;
+    if d.update_checks() != checks {
+        return Err("a check with the setting off".into());
+    }
+    if d.offered(a)?.contains(&menu::Command::CheckUpdates) {
+        return Err("Check for updates is offered with the check off".into());
+    }
+    // Turned on in Settings: it checks once, and both windows show the newer release's bar.
+    d.answer_update(Ok(Outcome::Newer {
+        version: Version::parse("9.0.0").expect("a version"),
+        url: "https://github.com/Suremise/legible/releases/tag/v9.0.0".into(),
+    }));
+    d.eval(a, "LegibleChrome.command('settings')")?;
+    d.eval(
+        a,
+        "document.getElementById('settings-tab-general').click(); \
+         document.getElementById('settings-check-updates').click()",
+    )?;
+    let newer = tr!("update-available", version = "9.0.0");
+    for w in [a, b] {
+        d.until(w, "the newer release's bar", &bar_shows(&newer))?;
+    }
+    if d.update_checks() != checks + 1 {
+        return Err(format!(
+            "{} checks for one turned on",
+            d.update_checks() - checks
+        ));
+    }
+    d.until(
+        a,
+        "Settings to say what was found",
+        &format!(
+            "document.querySelector('.update-status').textContent === {}",
+            json_string(&newer)
+        ),
+    )?;
+    d.eval(a, "document.querySelector('dialog[open]').close()")?;
+    d.until_true("Help's Check for updates, once it's on", || {
+        Ok(d.offered(a)?.contains(&menu::Command::CheckUpdates))
+    })?;
+    // See what's new opens the release's page (nothing, in a test's quiet run); Close takes the
+    // bar from every window.
+    d.eval(
+        b,
+        "document.querySelector('#update-bar button').click(); \
+         document.querySelectorAll('#update-bar button')[1].click()",
+    )?;
+    for w in [a, b] {
+        d.until(w, "the bar to go", BAR_HIDDEN)?;
+    }
+    // A window that asks: checked again, and told the answer.
+    d.answer_update(Ok(Outcome::UpToDate));
+    d.eval(b, "window.ipc.postMessage('update-check')")?;
+    d.until(
+        b,
+        "the window to be told it's the latest",
+        &format!(
+            "!document.getElementById('notice').hidden \
+             && document.getElementById('notice').textContent.includes({})",
+            json_string(&tr!("update-latest", version = env!("CARGO_PKG_VERSION")))
+        ),
+    )?;
+    if d.update_checks() != checks + 2 {
+        return Err("asking didn't check again".into());
+    }
+    // Turned off again: nothing more is asked, and Check for updates is disabled.
+    d.eval(a, "LegibleChrome.command('settings')")?;
+    d.eval(
+        a,
+        "document.getElementById('settings-check-updates').click()",
+    )?;
+    d.eval(a, "document.querySelector('dialog[open]').close()")?;
+    d.until_true("Check for updates to be disabled again", || {
+        Ok(!d.offered(a)?.contains(&menu::Command::CheckUpdates))
+    })?;
+    d.eval(b, "window.ipc.postMessage('update-check')")?;
+    d.eval(b, "1")?;
+    if d.update_checks() != checks + 2 {
+        return Err("a check after it was turned off".into());
+    }
+    close_clean(d, a)?;
+    close_clean(d, b)
+}
+
 fn document(docs: &Path, name: &str, text: &[u8]) -> Result<PathBuf> {
     let dir = docs.join(name);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;

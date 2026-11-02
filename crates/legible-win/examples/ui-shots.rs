@@ -31,6 +31,8 @@
 //! - `default-app`, the default app: the bar offering it, in light and dark and at 150%, and
 //!   Settings' Default app section for an installed copy and for a portable one not yet
 //!   registered;
+//! - `updates`, the update check: a newer release's bar, in light and dark and at 150%, and
+//!   Settings' Updates section off, and on with what the last check found;
 //! - `divider`, Split's divider: idle, hovered and dragged, in light and dark, at 100% and 150%;
 //! - `about`, About Legible: in light and dark at 100% and 150%, and its reading view (the
 //!   release notes, light and dark, and the third-party notices);
@@ -678,6 +680,96 @@ mod shots {
         document.querySelector(".default-app").scrollIntoView({ block: "end" });
         !!document.querySelector("dialog[open]")"#;
 
+    const UPDATE_BAR: &str = r#"
+        window.scrollTo(0, 0);
+        LegibleChrome.updates({ on: true, checking: false, status: "Legible 0.4.0 is available.", bar: "Legible 0.4.0 is available." });
+        !document.getElementById("update-bar").hidden"#;
+    const UPDATE_SETTINGS_OFF: &str = r#"
+        [...document.querySelectorAll(".menu-item")].find((m) => m.textContent.includes("Settings")).click();
+        document.getElementById("settings-tab-general").click();
+        document.querySelector(".updates").scrollIntoView({ block: "end" });
+        !!document.querySelector("dialog[open]")"#;
+    const UPDATE_SETTINGS: &str = r#"
+        LegibleChrome.apply({ ...JSON.parse(document.getElementById("legible-settings").textContent), "check-updates": true });
+        [...document.querySelectorAll(".menu-item")].find((m) => m.textContent.includes("Settings")).click();
+        document.getElementById("settings-tab-general").click();
+        LegibleChrome.updates({ on: true, checking: false, status: "Legible 0.3.0 is the latest version.", bar: "" });
+        document.querySelector(".updates").scrollIntoView({ block: "end" });
+        !!document.querySelector("dialog[open]")"#;
+
+    const SHOTS_UPDATES: &[Shot] = &[
+        Shot {
+            name: "update-bar-light-100",
+            dark: false,
+            scale: 1.0,
+            reading: false,
+            script: UPDATE_BAR,
+            spell: false,
+            pointer: Pointer::None,
+            read_only: false,
+        },
+        Shot {
+            name: "update-bar-dark-100",
+            dark: true,
+            scale: 1.0,
+            reading: false,
+            script: UPDATE_BAR,
+            spell: false,
+            pointer: Pointer::None,
+            read_only: false,
+        },
+        Shot {
+            name: "update-bar-light-150",
+            dark: false,
+            scale: 1.5,
+            reading: false,
+            script: UPDATE_BAR,
+            spell: false,
+            pointer: Pointer::None,
+            read_only: false,
+        },
+        Shot {
+            name: "update-settings-off-light-100",
+            dark: false,
+            scale: 1.0,
+            reading: false,
+            script: UPDATE_SETTINGS_OFF,
+            spell: false,
+            pointer: Pointer::None,
+            read_only: false,
+        },
+        Shot {
+            name: "update-settings-light-100",
+            dark: false,
+            scale: 1.0,
+            reading: false,
+            script: UPDATE_SETTINGS,
+            spell: false,
+            pointer: Pointer::None,
+            read_only: false,
+        },
+        Shot {
+            name: "update-settings-dark-100",
+            dark: true,
+            scale: 1.0,
+            reading: false,
+            script: UPDATE_SETTINGS,
+            spell: false,
+            pointer: Pointer::None,
+            read_only: false,
+        },
+        Shot {
+            name: "update-settings-light-150",
+            dark: false,
+            scale: 1.5,
+            reading: false,
+            script: UPDATE_SETTINGS,
+            spell: false,
+            pointer: Pointer::None,
+            read_only: false,
+        },
+    ];
+
     const SHOTS_DEFAULT_APP: &[Shot] = &[
         Shot {
             name: "default-bar-light-100",
@@ -1002,6 +1094,7 @@ mod shots {
             "recent" => SHOTS_RECENT,
             "pictures" => SHOTS_PICTURES,
             "default-app" => SHOTS_DEFAULT_APP,
+            "updates" => SHOTS_UPDATES,
             "divider" => SHOTS_DIVIDER,
             "status-bar" => SHOTS_STATUS_BAR,
             "about" => SHOTS_ABOUT,

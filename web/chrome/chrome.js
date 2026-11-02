@@ -35,10 +35,16 @@
 //   default-app-open           open Windows' Default apps at Legible
 //   default-app-close          the bar's Close: not offered again until Legible starts again
 //   default-app-register, default-app-unregister  a portable copy's file associations
+//   updates                    what's known of updates → updates({on, checking, status, bar})
+//   update-check               Settings' Check now (as Help > Check for updates): only while
+//                              the setting is on
+//   update-open, update-close  the update bar's See what's new (the release's page, as the
+//                              window has it) and Close (gone from every window till Legible
+//                              starts again)
 // and the window answers through window.LegibleChrome: apply(settings), saveFailed(text),
 // about({rows}), aboutCopied(), reading(name, text, html), replaceDocument({generation, html}) (live reload), updated() (the editor showed
 // the file as it now is on disk), fileGone(bool), setRecent({token, items: [{name, path}]}),
-// notice(text), remoteImages({generation, show, ask, unavailable}), adopt({generation, remote})
+// notice(text), updates({on, checking, status, bar}), remoteImages({generation, show, ask, unavailable}), adopt({generation, remote})
 // (the editor's preview shows that render), reloadWaits(bool) (a reload held until the edits are
 // saved), defaultApp({offer, registered, isDefault, portable}) and layout() (the editor's
 // conflict bar, #conflict-bar, came or went: it stacks under the others), status({path, note,
@@ -1114,7 +1120,9 @@
     settingsDialog.querySelector("select[name=zoom]").value = String(settings.zoom);
     for (const name of COMFORTS) settingsDialog.querySelector(`input[name=${name}]`).checked = settings[name];
     settingsDialog.querySelector("input[name=status-bar]").checked = settings["status-bar"] === true;
+    settingsDialog.querySelector("input[name=check-updates]").checked = settings["check-updates"] === true;
     syncDefaultSection();
+    syncUpdatesSection();
   }
 
   // The comforts, each on by default and turned off here.
@@ -1237,13 +1245,14 @@
             ]),
             row("comfort", s("settings-comfort"), COMFORTS.map((name) => checkbox(name, s(`settings-${name}`)))),
           ],
-          ["general", defaultSection()],
+          ["general", defaultSection(), updatesSection()],
         ]),
         saveStatus,
       );
     }
     syncSettingsDialog();
     send("default-app");
+    send("updates");
     const tab = selectTab(lastTab());
     settingsDialog.showModal();
     settingsTabs[tab].tab.focus();
@@ -1827,6 +1836,73 @@
   // Back from Default apps (or anywhere else): the window says again what's so now.
   window.addEventListener("focus", () => send("default-app"));
 
+  // --- Updates -------------------------------------------------------------------------------
+
+  // Settings' Check for updates (off by default): while it's on, the window checks GitHub for a
+  // newer Legible as it starts and when asked (Check now), and every window shows what it found.
+  // A newer one gets a bar whose button opens its release's page; nothing is downloaded. The
+  // texts come from the window, in the reader's language.
+  let updatesState = { on: false, checking: false, status: "", bar: "" };
+  const updateText = el("span", { className: "file-bar-text" });
+  const updateBar = el(
+    "div",
+    { id: "update-bar", role: "region", "aria-label": s("update-label"), hidden: true },
+    updateText,
+    button(s("update-whats-new"), { text: s("update-whats-new"), className: "wide-button", onclick: () => send("update-open") }),
+    button(s("close"), { text: s("close"), className: "wide-button", onclick: () => send("update-close") }),
+  );
+
+  let updatesParts = null;
+  function updatesSection() {
+    updatesParts = {
+      status: el("p", { className: "update-status", role: "status", "aria-live": "polite" }),
+      check: button(s("update-check-now"), {
+        text: s("update-check-now"),
+        className: "wide-button",
+        onclick: () => send("update-check"),
+      }),
+    };
+    const { status, check } = updatesParts;
+    const box = checkbox("check-updates", s("settings-check-updates"));
+    box.querySelector("input").setAttribute("aria-describedby", "settings-updates-hint");
+    const section = row("updates", s("settings-updates"), [
+      box,
+      el("p", { className: "hint", id: "settings-updates-hint", text: s("settings-updates-hint") }),
+      check,
+      status,
+    ]);
+    section.classList.add("updates");
+    return section;
+  }
+
+  function syncUpdatesSection() {
+    if (!updatesParts) return;
+    const { status, check } = updatesParts;
+    const on = settings["check-updates"] === true;
+    check.disabled = !on || updatesState.checking;
+    status.textContent = on ? updatesState.status : "";
+    status.hidden = !status.textContent;
+  }
+
+  /** What the window knows of updates: whether the setting is `on`, whether a check is under
+      way, Settings' line about the last one (`status`), and the bar's text (`bar`; empty: no
+      bar). */
+  function updates(state) {
+    updatesState = {
+      on: Boolean(state?.on),
+      checking: Boolean(state?.checking),
+      status: String(state?.status ?? ""),
+      bar: String(state?.bar ?? ""),
+    };
+    updateText.textContent = updatesState.bar;
+    const show = updatesState.bar !== "";
+    if (updateBar.hidden === show) {
+      updateBar.hidden = !show;
+      scheduleLayout();
+    }
+    syncUpdatesSection();
+  }
+
   /** The editor's preview (or its text as now on disk) shows render `generation` now: the
       page's render is that one, and its pictures are as `remote` says (or as approved till now).
       */
@@ -2091,8 +2167,9 @@
     const bar = document.getElementById("conflict-bar");
     return bar && !bar.hidden ? bar.offsetHeight : 0;
   };
+  const defaultHeight = () => (defaultBar.hidden ? 0 : defaultBar.offsetHeight);
   const barsTop = () =>
-    TOOLBAR_HEIGHT + findHeight() + fileHeight() + picturesHeight() + (defaultBar.hidden ? 0 : defaultBar.offsetHeight);
+    TOOLBAR_HEIGHT + findHeight() + fileHeight() + picturesHeight() + defaultHeight() + (updateBar.hidden ? 0 : updateBar.offsetHeight);
   const chromeTop = () => barsTop() + conflictHeight();
 
   // What moves with the bars (their heights, where the document starts under them, the status
@@ -2104,7 +2181,7 @@
   // (where a heading comes to rest), the document's top and bottom in Split, the outline's; the
   // chrome's other elements (the children of <body>) get the custom properties window.css and
   // editor.css read. A value set again as it was costs nothing.
-  function writeLayout({ chromeTop, conflictTop, findHeight, fileHeight, picturesHeight, statusHeight }) {
+  function writeLayout({ chromeTop, conflictTop, findHeight, fileHeight, picturesHeight, defaultHeight, statusHeight }) {
     root.style.scrollPaddingTop = `${chromeTop}px`;
     document.body.style.paddingTop = `${chromeTop}px`;
     document.body.style.paddingBottom = `${statusHeight}px`;
@@ -2118,6 +2195,7 @@
       "--find-height": findHeight,
       "--file-height": fileHeight,
       "--pictures-height": picturesHeight,
+      "--default-height": defaultHeight,
       "--status-height": statusHeight,
     };
     for (const element of document.body.children) {
@@ -2140,6 +2218,7 @@
         findHeight: findHeight(),
         fileHeight: fileHeight(),
         picturesHeight: picturesHeight(),
+        defaultHeight: defaultHeight(),
         statusHeight: statusBar.hidden ? 0 : statusBar.offsetHeight,
       });
       fitPath();
@@ -2414,6 +2493,7 @@
     pdfSaved,
     remoteImages,
     defaultApp,
+    updates,
     adopt,
     reloadWaits,
     layout: scheduleLayout,
@@ -2449,13 +2529,14 @@
 
   // --- Start ---------------------------------------------------------------------------------
 
-  document.body.prepend(toolbar, findBar, fileBar, picturesBar, defaultBar, outline, updatedNote);
+  document.body.prepend(toolbar, findBar, fileBar, picturesBar, defaultBar, updateBar, outline, updatedNote);
   document.body.append(notice, toast, statusBar);
   send("recent");
   send("status");
   send("remote-images");
   send("file-status");
   send("default-app");
+  send("updates");
   applyView();
   setOutlineWidth(outlineWidth);
   setZoom(zoom);

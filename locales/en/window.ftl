@@ -87,7 +87,7 @@ chrome-find-count = { $current } of { $total }
 chrome-find-none = No matches
 
 # Settings. Its tabs, each a group of settings: how documents look; reading them; and Legible on
-# this PC (the default app).
+# this PC (the default app and the update check).
 chrome-settings-tab-appearance = Appearance
 chrome-settings-tab-reading = Reading
 chrome-settings-tab-general = General
@@ -120,6 +120,16 @@ chrome-default-is = Legible opens your Markdown files.
 chrome-default-register = Register Legible for .md files on this PC
 chrome-default-unregister = Remove Legible from this PC's apps for .md files
 chrome-default-portable = This copy of Legible is portable: it adds nothing to this PC until you register it.
+# Settings' Updates section: its heading, its checkbox (off by default), what it says it sends
+# (word for word what Legible does: keep it so), and its button that checks straight away.
+chrome-settings-updates = Updates
+chrome-settings-check-updates = Check for updates when Legible starts
+chrome-settings-updates-hint = Off unless you turn it on. Legible then asks GitHub (github.com) for the address of its latest release: straight away, each time it starts, and when you choose Check now. It tells you when there's a newer version. It sends nothing about you or your files, and never downloads or installs anything: you choose whether to get the new version.
+chrome-update-check-now = Check now
+# The bar a window shows when a newer Legible is out (its text is update-available): its name
+# for screen readers, and its button, which opens the release's page in the browser.
+chrome-update-label = Update available
+chrome-update-whats-new = See what's new
 # Settings couldn't be saved. They still apply until Legible closes. $reason: what Windows said.
 chrome-save-read-only = Your settings couldn't be saved: Legible's folder can't be written to. They apply until you close Legible.
 chrome-save-failed = Your settings couldn't be saved ({ $reason }). They apply until you close Legible.
@@ -261,6 +271,24 @@ chrome-default-dismiss = Don't ask again
 chrome-default-how = In Default apps, choose Legible for .md (and for .markdown and .mdown, if you have them).
 chrome-default-failed = Legible couldn't change its file associations ({ $reason }).
 
+# The update check (only when it's turned on in Settings): Settings' line about the last check,
+# the bar's text, and what a window that asked is told. $version: a version, as "0.3.0".
+update-checking = Checking for updates…
+update-available = Legible { $version } is available.
+update-latest = Legible { $version } is the latest version.
+update-failed = Legible couldn't check for updates ({ $reason }).
+# update-failed's $reason when GitHub's answer wasn't a release. $status: an HTTP status code
+# ("404"). As every reason: a small letter first, no full stop.
+update-failed-status = GitHub answered { $status } instead of naming its latest release
+# update-failed's $reason when this version can't be read as one ($version).
+update-failed-version = this version ({ $version }) can't be compared with GitHub's
+# update-failed's $reason when the request timed out, and when the PC couldn't reach GitHub
+# (offline, or the name couldn't be found).
+update-failed-timeout = github.com didn't answer in time
+update-failed-offline = this PC couldn't reach github.com
+# update-failed's $reason for another failure Windows has no words for: its error number.
+update-failed-code = error { $code }
+
 # The installer (installer/legible.wxs; one line each, no placeables: the installer can't format
 # Fluent): when a newer Legible is installed, and the Start menu shortcut's description. Then the
 # file associations: the type File Explorer shows for Markdown files, and Default apps' line about
@@ -367,6 +395,8 @@ menu-theme-system = &Follow Windows
 menu-theme-light = &Light
 menu-theme-dark = &Dark
 menu-settings = &Settings…
+# Only while Settings' Check for updates is on (disabled otherwise).
+menu-check-updates = Check for &updates
 menu-about = &About Legible
 # The keys of a shortcut, joined with "+": "Ctrl+Shift+S", "Ctrl+Plus".
 menu-key-ctrl = Ctrl
@@ -421,7 +451,7 @@ chrome-about-tagline = A reader that makes Markdown legible: read it, edit it, c
 chrome-about-licence-line = Open source under the { $mit }. Includes { $notices }.
 chrome-about-mit = MIT License
 chrome-about-third-party = third-party software
-chrome-about-privacy = No telemetry. Legible goes online only for pictures you allow.
+chrome-about-privacy = No telemetry. Legible goes online only for pictures you allow and, if you turn on Check for updates in Settings, to ask GitHub for its latest version: one request that sends nothing about you or your files.
 # Word for word as in README.md: change both together.
 chrome-about-notice = © 2026 Darren Marshall. Legible is independently developed and isn't affiliated with, endorsed or sponsored by Microsoft. Microsoft, Windows, Outlook, Word and OneNote are trademarks of the Microsoft group of companies.
 chrome-about-copy = Copy

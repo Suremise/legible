@@ -53,6 +53,7 @@ use crate::reload::{self, Action, FileBar, Kind};
 use crate::saving;
 use crate::session::{self, Answer, Round};
 use crate::settings::{Setting, Settings, json_string};
+use crate::update::Updates;
 use crate::watch::{Report, Snapshot, Watch, Watched};
 use crate::win32::session::Heard;
 use crate::win32::{self, Message, dialogs};
@@ -65,6 +66,7 @@ mod kept;
 mod menus;
 mod save;
 mod status_bar;
+mod updates;
 
 /// Microsoft's page for the WebView2 runtime, shown (never fetched) when it's missing.
 pub const WEBVIEW2_URL: &str = "https://developer.microsoft.com/microsoft-edge/webview2/";
@@ -156,6 +158,9 @@ enum UserEvent {
     SessionGoesOn,
     /// A menu bar item was picked: its ID ([`menu::parse_id`]).
     Menu(String),
+    /// The update check's answer to request `u64` ([`crate::update::check_latest`]), or why
+    /// there's none.
+    Updated(u64, Result<legible_core::update::Outcome, String>),
     /// The test harness's driver asks something of the shell ([`harness`]).
     #[cfg(feature = "harness")]
     Harness(harness::Call),
@@ -202,6 +207,8 @@ trait StandIn {
     fn holds_opened(&self, window: WindowId, read: Read) -> Option<Read>;
     /// Whether the shell runs on with no window open: the harness isn't done.
     fn stays(&self) -> bool;
+    /// The update check's answer, in place of GitHub's: a test's shell never goes online.
+    fn update(&self) -> Result<legible_core::update::Outcome, String>;
 }
 
 /// What live reload found for a window.
@@ -297,6 +304,8 @@ fn handler(
         *flow = ControlFlow::Wait;
         match event {
             Event::NewEvents(StartCause::Init) => {
+                // Only if the reader turned it on: once, as Legible starts.
+                shell.check_updates(None);
                 if let Some(files) = files.take() {
                     // Unsaved edits kept as Windows last ended the session, offered back first.
                     shell.offer_kept(target);
@@ -386,6 +395,7 @@ fn handler(
                 shell.menu(&item);
                 shell.exit_when_settled(flow);
             }
+            Event::UserEvent(UserEvent::Updated(request, answer)) => shell.updated(request, answer),
             #[cfg(feature = "harness")]
             Event::UserEvent(UserEvent::Harness(call)) => {
                 call.run(&mut shell, target, flow);
@@ -738,6 +748,8 @@ struct Shell {
     portable: bool,
     /// The default-app bar's Close: not offered again in any window until Legible starts again.
     default_offer_closed: bool,
+    /// The update check, only while Settings has it on ([`updates`]).
+    updates: Updates<WindowId>,
     /// Copies: built on a thread of their own, in one order for the process, and the one
     /// waiting for the clipboard.
     copier: Copier<WindowId>,
@@ -908,6 +920,7 @@ impl Shell {
             exe,
             portable,
             default_offer_closed: false,
+            updates: Updates::default(),
             shown_timed: false,
             drawn_timed: false,
             shutdown_wait: None,
@@ -1827,6 +1840,10 @@ impl Shell {
             (Some(asked @ ("default-app-register" | "default-app-unregister")), None, ..) => {
                 self.register(id, asked == "default-app-register");
             }
+            (Some("updates"), None, ..) => self.send_updates(id),
+            (Some("update-check"), None, ..) => self.check_updates(Some(id)),
+            (Some("update-open"), None, ..) => self.open_update(),
+            (Some("update-close"), None, ..) => self.close_update_bar(),
             (Some("about"), None, ..) => self.send_about(id),
             (Some("about-copy"), None, ..) => self.copy_about(id),
             (Some("reading"), Some(name), None, _) => self.send_reading(id, name),
@@ -1999,6 +2016,9 @@ impl Shell {
         }
         if matches!(setting, Setting::Theme(_)) {
             self.bars_theme();
+        }
+        if let Setting::CheckUpdates(on) = setting {
+            self.updates_turned(on);
         }
         if let Some(text) = failed {
             self.run_script(

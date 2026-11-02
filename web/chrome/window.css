@@ -118,6 +118,7 @@ body {
 #file-bar,
 #pictures-bar,
 #default-bar,
+#update-bar,
 #updated,
 #toast,
 #notice {
@@ -649,7 +650,8 @@ dialog.panel::backdrop {
   font: inherit;
 }
 
-/* A note under a setting, only where one's needed (a portable copy's). */
+/* A note under a setting, only where one's needed (a portable copy's, and what the update check
+   sends). */
 .panel-body .hint {
   color: var(--text-muted);
   font-size: 13px;
@@ -897,7 +899,7 @@ dialog.panel.reading[open] {
 
 /* --- The bars: each one's icon leads, in its stripe's colour ---------------------------------- */
 
-:is(#file-bar, #pictures-bar, #default-bar)::before,
+:is(#file-bar, #pictures-bar, #default-bar, #update-bar)::before,
 #notice::before {
   content: "";
   flex: none;
@@ -981,10 +983,41 @@ dialog.panel.reading[open] {
   margin: 0;
 }
 
+/* A newer Legible: the bar that says so, under the others (the update check, only when it's on). */
+#update-bar {
+  position: fixed;
+  top: calc(
+    40px + var(--find-height, 0px) + var(--file-height, 0px) + var(--pictures-height, 0px) +
+      var(--default-height, 0px)
+  );
+  left: 0;
+  right: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  min-height: 44px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 14px;
+  font: 14px/1.4 var(--sans);
+  color: var(--text);
+  background: var(--info-bg);
+  border-bottom: 1px solid var(--rule);
+  border-left: var(--bar-stripe) solid var(--accent);
+}
+
+.updates .hint,
+.updates .update-status {
+  margin: 0;
+}
+
 #pictures-bar[hidden],
 .pictures-actions[hidden],
 #default-bar[hidden],
 .default-app [hidden],
+#update-bar[hidden],
+.updates [hidden],
 #file-bar[hidden],
 #updated[hidden] {
   display: none;

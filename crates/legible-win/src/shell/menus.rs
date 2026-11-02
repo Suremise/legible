@@ -161,6 +161,7 @@ impl Shell {
             theme: self.settings.theme,
             width: self.settings.width,
             status_bar: self.settings.status_bar,
+            check_updates: self.settings.check_updates,
         }
     }
 

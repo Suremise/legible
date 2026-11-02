@@ -109,7 +109,8 @@ them, but list a new one in ARCHITECTURE.md's "Build-only tools".
 - **Tests use temporary folders only.** A test never reads or writes your real settings, file
   associations or clipboard, and cleans up after itself even when it fails.
 - **Tests wait for conditions, never for time,** and pass under load, beside every other test.
-- **No network:** Legible makes no network calls of its own, and nor do its tests.
+- **No network:** Legible makes no network calls of its own but the update check, which is off
+  until the reader turns it on, and its tests make none.
 - **No global keyboard or mouse input,** ever: a test drives only its own window, through its own
   page's script or its own window handle.
 - A fix comes with a test that fails without it.

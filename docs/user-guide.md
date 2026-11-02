@@ -337,6 +337,7 @@ into one; Esc closes Settings.
 | Setting | What it does |
 |---|---|
 | Default app | Make Legible the default for Markdown files; for a portable copy, Register or Remove |
+| Updates: Check for updates when Legible starts | Off by default. On, Legible asks GitHub for its latest version then, each time it starts, and when you choose **Check now** (or **Help > Check for updates**), and a bar tells you when there's a newer one ([below](#privacy)) |
 
 ## Keyboard shortcuts
 
@@ -361,10 +362,18 @@ into one; Esc closes Settings.
 
 - **No telemetry.** Legible sends nothing about you or your documents anywhere, and has no
   account.
-- **No network**, except pictures from the internet that you allow
-  ([above](#pictures-from-the-internet)). Legible itself contains no code that connects to the
-  internet; the pictures you allow are fetched by WebView2, Microsoft's component that shows the
-  page.
+- **No network**, except for two things you choose:
+  - **Pictures from the internet** that you allow ([above](#pictures-from-the-internet)). They're
+    fetched by WebView2, Microsoft's component that shows the page.
+  - **Checking for updates**, off until you turn it on in **Settings > General > Updates**. Then
+    Legible makes one request to GitHub straight away and each time it starts, and another each
+    time you choose **Check now** or **Help > Check for updates**: it asks for the address of
+    Legible's latest release (`https://github.com/Suremise/legible/releases/latest`) and reads
+    only that address. Nothing
+    about you, your PC or your documents is sent beyond what any web request carries (your IP
+    address among them). When there's a newer version, a bar says so: **See what's new** opens its
+    release page in your browser, and **Close** hides the bar until Legible starts again. Legible
+    never downloads or installs anything by itself; you choose whether to get the new version.
 - **Everything stays on your PC:** settings, recent files and logs are in Legible's folder
   ([below](#where-legible-keeps-things)).
 

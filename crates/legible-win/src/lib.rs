@@ -59,6 +59,8 @@ pub mod shell;
 #[cfg(windows)]
 pub mod status;
 #[cfg(windows)]
+pub mod update;
+#[cfg(windows)]
 pub mod watch;
 #[cfg(windows)]
 pub mod win32;

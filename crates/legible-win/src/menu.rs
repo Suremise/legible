@@ -72,11 +72,12 @@ pub enum Command {
     Width(Width),
     Theme(Theme),
     Settings,
+    CheckUpdates,
     About,
 }
 
 /// Every command, in the bar's order.
-pub const COMMANDS: [Command; 32] = [
+pub const COMMANDS: [Command; 33] = [
     Command::Open,
     Command::Save,
     Command::SaveAs,
@@ -108,6 +109,7 @@ pub const COMMANDS: [Command; 32] = [
     Command::Theme(Theme::Light),
     Command::Theme(Theme::Dark),
     Command::Settings,
+    Command::CheckUpdates,
     Command::About,
 ];
 
@@ -219,6 +221,7 @@ impl Command {
             Command::Theme(Theme::Light) => "menu-theme-light",
             Command::Theme(Theme::Dark) => "menu-theme-dark",
             Command::Settings => "menu-settings",
+            Command::CheckUpdates => "menu-check-updates",
             Command::About => "menu-about",
         }
     }
@@ -261,6 +264,7 @@ impl Command {
             | Command::Width(_)
             | Command::Theme(_)
             | Command::Settings
+            | Command::CheckUpdates
             | Command::About => None,
         }
     }
@@ -299,6 +303,8 @@ impl Command {
             Command::Theme(Theme::Light) => Route::Page("theme-light"),
             Command::Theme(Theme::Dark) => Route::Page("theme-dark"),
             Command::Settings => Route::Page("settings"),
+            // As Settings' Check now.
+            Command::CheckUpdates => Route::Window("update-check"),
             Command::About => Route::Page("about"),
         }
     }
@@ -343,6 +349,8 @@ pub struct State {
     pub width: Width,
     /// The status bar shows (a setting, for every window).
     pub status_bar: bool,
+    /// Settings' Check for updates is on (for every window).
+    pub check_updates: bool,
 }
 
 impl State {
@@ -359,6 +367,8 @@ impl State {
             | Command::Theme(_)
             | Command::Settings
             | Command::About => true,
+            // Only while the reader has it on: off, Legible goes online for nothing.
+            Command::CheckUpdates => self.check_updates,
             // Nothing unsaved, or a save under way: nothing (more) to save. In any mode, as
             // Ctrl+S: edits made in Split or Edit are still unsaved back in View. A file that
             // can't be saved where it is has only Save as.
@@ -464,7 +474,14 @@ pub const BAR: [(&str, &[Entry]); 5] = [
         ],
     ),
     ("menu-tools", &[Entry::Item(Command::Settings)]),
-    ("menu-help", &[Entry::Item(Command::About)]),
+    (
+        "menu-help",
+        &[
+            Entry::Item(Command::CheckUpdates),
+            Entry::Separator,
+            Entry::Item(Command::About),
+        ],
+    ),
 ];
 
 /// An entry in a menu.
@@ -824,6 +841,7 @@ mod tests {
             (Command::Theme(Theme::Light), Route::Page("theme-light")),
             (Command::Theme(Theme::Dark), Route::Page("theme-dark")),
             (Command::Settings, Route::Page("settings")),
+            (Command::CheckUpdates, Route::Window("update-check")),
             (Command::About, Route::Page("about")),
         ];
         assert_eq!(expected.len(), COMMANDS.len());
@@ -835,7 +853,7 @@ mod tests {
         // chrome tests run each of those (scripts/chrome-tests.mjs).
         for command in COMMANDS {
             if let Route::Window(message) = command.route() {
-                let known = ["open", "save-pdf", "close"].contains(&message)
+                let known = ["open", "save-pdf", "close", "update-check"].contains(&message)
                     || crate::editor::Message::parse(message).is_some();
                 assert!(known, "{message}");
             }
@@ -1132,6 +1150,19 @@ mod tests {
             ]
         );
         assert_eq!(state.checked(Command::Mode(Mode::View)), Some(false));
+    }
+
+    #[test]
+    fn check_for_updates_is_offered_only_while_it_is_on() {
+        for state in [State::default(), reading()] {
+            assert!(!state.enabled(Command::CheckUpdates));
+            assert_eq!(state.checked(Command::CheckUpdates), None);
+            let on = State {
+                check_updates: true,
+                ..state
+            };
+            assert!(on.enabled(Command::CheckUpdates));
+        }
     }
 
     #[test]

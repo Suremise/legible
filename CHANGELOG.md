@@ -6,6 +6,13 @@ All notable changes to Legible are recorded here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **Check for updates,** off until you turn it on in Settings > General > Updates. Then Legible
+  asks GitHub for its latest version straight away, each time it starts, and when you choose
+  Check now or Help > Check for updates, and a bar tells you when there's a newer one, with a link to its release page.
+  It sends nothing about you or your documents, and never downloads or installs anything.
+
 ## [0.2.0] - 2026-10-31
 
 More of what you need is on the toolbar, and Legible keeps your place as you move round.

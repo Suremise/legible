@@ -66,5 +66,10 @@ it was written:
 - **One Legible per user**: a later launch hands its files to the running Legible through a named
   pipe only that user can open. Another user or process reaching it counts.
 
-Legible makes no network connections of its own: the only requests it allows are for pictures
-the reader has let in, and WebView2 makes them.
+Legible makes one network connection of its own, the update check, and only while the reader has
+it turned on: a `GET` of `https://github.com/Suremise/legible/releases/latest` whose redirect it
+reads without following (`crates/legible-win/src/update.rs`, `win32/http.rs`). A request with it
+off, to another address, or carrying anything about the reader or their documents, is a
+vulnerability, and so is a newer release's link that opens anything but that release's page on
+GitHub. The only other requests it allows are for pictures the reader has let in, and WebView2
+makes them.

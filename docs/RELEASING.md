@@ -137,6 +137,7 @@ to them).
 | [ ] | **Live reload:** change the open file in another editor; the window updates, keeps its place and says "Updated"; move and delete the file and see the bar | |
 | [ ] | **A large document:** a 2 MB Markdown file opens, scrolls and finds smoothly | |
 | [ ] | **100% and 150%:** on a 100% and a 150% display (and moving a window between them): sharp text and icons, the bar and menus laid out | |
+| [ ] | **Updates:** with Check for updates off (the default), Legible makes no connection at start (Resource Monitor or a firewall log); turned on, Settings checks and says what it found, and Help > Check for updates says so in the window; with a newer release out, the bar's See what's new opens its GitHub page | |
 | [ ] | **No network while remote images are blocked:** with pictures from the internet set to Ask (and Never), open a document with remote pictures and watch with Resource Monitor (or a firewall log) that Legible makes no connection until Show once | |
 | [ ] | **SmartScreen's unsigned warning:** on downloading and running both files; note what a user has to click | |
 | [ ] | **Uninstall:** from Settings > Apps; Legible's associations go (Open with no longer lists it), another app's stay; settings and recent files in `%APPDATA%\Legible` stay | |

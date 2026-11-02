@@ -77,6 +77,9 @@ pub struct Settings {
     /// Whether the status bar shows (the file's path; while editing, words, encoding and line
     /// endings). Off by default.
     pub status_bar: bool,
+    /// Whether Legible checks GitHub for a newer version ([`crate::update`]): as it starts, and
+    /// when the reader asks. Off by default: the one thing Legible itself sends online.
+    pub check_updates: bool,
     /// Lines of the file this version doesn't know, kept for saving.
     unknown: Vec<String>,
 }
@@ -97,6 +100,7 @@ impl Default for Settings {
             reopen_windows: true,
             remember_place: true,
             status_bar: false,
+            check_updates: false,
             unknown: Vec::new(),
         }
     }
@@ -118,6 +122,7 @@ pub enum Setting {
     ReopenWindows(bool),
     RememberPlace(bool),
     StatusBar(bool),
+    CheckUpdates(bool),
 }
 
 impl Setting {
@@ -137,6 +142,7 @@ impl Setting {
             "reopen-windows" => Setting::ReopenWindows(boolean(value)?),
             "remember-place" => Setting::RememberPlace(boolean(value)?),
             "status-bar" => Setting::StatusBar(boolean(value)?),
+            "check-updates" => Setting::CheckUpdates(boolean(value)?),
             _ => return None,
         })
     }
@@ -208,6 +214,7 @@ impl Settings {
             Setting::ReopenWindows(v) => self.reopen_windows = v,
             Setting::RememberPlace(v) => self.remember_place = v,
             Setting::StatusBar(v) => self.status_bar = v,
+            Setting::CheckUpdates(v) => self.check_updates = v,
         }
     }
 
@@ -278,6 +285,7 @@ impl Settings {
             "reopen-windows" => self.reopen_windows.to_string(),
             "remember-place" => self.remember_place.to_string(),
             "status-bar" => self.status_bar.to_string(),
+            "check-updates" => self.check_updates.to_string(),
             _ => unreachable!("not a setting: {key}"),
         }
     }
@@ -301,7 +309,7 @@ impl Settings {
 }
 
 /// Each setting's key in the file, and as the page names it.
-const FILE_KEYS: [(&str, &str); 13] = [
+const FILE_KEYS: [(&str, &str); 14] = [
     ("theme", "theme"),
     ("reading_style", "style"),
     ("reading_width", "width"),
@@ -315,6 +323,9 @@ const FILE_KEYS: [(&str, &str); 13] = [
     ("reopen_windows", "reopen-windows"),
     ("remember_place", "remember-place"),
     ("status_bar", "status-bar"),
+    // Not `check_for_updates`: an early copy had a setting of that name with no check behind
+    // it, so a file that says it was never the reader choosing this one.
+    ("check_updates", "check-updates"),
 ];
 
 /// Whether a setting's value is a number or a boolean, unquoted in the file and the JSON.
@@ -328,6 +339,7 @@ fn is_unquoted(key: &str) -> bool {
             | "reopen-windows"
             | "remember-place"
             | "status-bar"
+            | "check-updates"
     )
 }
 
@@ -491,15 +503,17 @@ mod tests {
     }
 
     /// Check for updates was a setting once, with no update check behind it: a file that has
-    /// it keeps the line as it is, and nothing offers it.
+    /// it keeps the line as it is, and it doesn't turn on today's check (`check_updates`), which
+    /// the reader never chose.
     #[test]
-    fn an_old_check_for_updates_line_is_kept_and_offered_nowhere() {
+    fn an_old_check_for_updates_line_is_kept_and_turns_nothing_on() {
         let temp = tempfile::tempdir().unwrap();
         let file = temp.path().join("settings.toml");
         fs::write(&file, "check_for_updates = true\ntheme = \"dark\"\n").unwrap();
         let s = Settings::load(&file);
         assert_eq!(s.theme, Theme::Dark);
-        assert!(!s.to_json().contains("update"));
+        assert!(!s.check_updates);
+        assert!(s.to_json().contains(r#""check-updates":false"#));
         assert_eq!(Setting::parse("check-for-updates", "true"), None);
         s.save(&file).unwrap();
         let text = fs::read_to_string(&file).unwrap();
@@ -560,7 +574,26 @@ mod tests {
                 .contains("status_bar = true\n")
         );
         assert!(Settings::load(&file).status_bar);
-        assert!(s.to_json().ends_with(r#""status-bar":true}"#));
+        assert!(s.to_json().contains(r#""status-bar":true,"#));
+    }
+
+    #[test]
+    fn the_update_check_is_off_by_default_and_remembered() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("settings.toml");
+        let mut s = Settings::default();
+        assert!(!s.check_updates);
+        assert_eq!(
+            Setting::parse("check-updates", "true"),
+            Some(Setting::CheckUpdates(true))
+        );
+        assert_eq!(Setting::parse("check-updates", "yes"), None);
+        s.set(Setting::CheckUpdates(true));
+        s.save(&file).unwrap();
+        let text = fs::read_to_string(&file).unwrap();
+        assert!(text.contains("check_updates = true\n"), "{text}");
+        assert!(Settings::load(&file).check_updates);
+        assert!(s.to_json().ends_with(r#""check-updates":true}"#));
     }
 
     #[test]
@@ -619,7 +652,7 @@ mod tests {
         let json = Settings::default().to_json();
         assert_eq!(
             json,
-            r#"{"theme":"system","style":"sans","width":"wide","zoom":100,"remote-images":"ask","outline":"automatic","offer-default-app":true,"editor-font":"reading","split":50,"wheel-zoom":true,"reopen-windows":true,"remember-place":true,"status-bar":false}"#
+            r#"{"theme":"system","style":"sans","width":"wide","zoom":100,"remote-images":"ask","outline":"automatic","offer-default-app":true,"editor-font":"reading","split":50,"wheel-zoom":true,"reopen-windows":true,"remember-place":true,"status-bar":false,"check-updates":false}"#
         );
     }
 }

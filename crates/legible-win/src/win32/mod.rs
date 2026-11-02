@@ -1,6 +1,7 @@
 //! Thin, safe wrappers round the Win32 calls the window needs: the user and their language,
 //! message boxes, opening links with the user's own apps, the foreground, the work area and
-//! process times here; the single-instance pipe in [`pipe`].
+//! process times here; the single-instance pipe in [`pipe`]; the update check's one request in
+//! [`http`].
 //!
 //! The only module (with its submodules) where `unsafe` is allowed: the workspace denies it
 //! elsewhere. Each wrapper owns the buffers it passes to Windows, checks the result, copies
@@ -11,6 +12,7 @@
 pub mod actions;
 pub mod clipboard;
 pub mod dialogs;
+pub mod http;
 pub mod jumplist;
 pub mod menu;
 pub mod pdf;

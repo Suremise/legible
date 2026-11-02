@@ -102,8 +102,9 @@ the window carries on with the new file.
 
 ## Privacy
 
-**No telemetry, ever.** Legible sends nothing anywhere, has no account and needs no internet
-connection. The one exception is pictures from the internet, and only when you say so:
+**No telemetry, ever.** Legible sends nothing about you or your documents anywhere, has no
+account and needs no internet connection. It goes online for only two things, and only when you
+say so:
 
 - **Pictures from the internet are blocked until you allow them,** as in Outlook, because a
   picture can tell its sender that you opened the document. A bar asks: **Show once**, or
@@ -113,6 +114,12 @@ connection. The one exception is pictures from the internet, and only when you s
   file can carry HTML, and Legible shows it safely.
 - **Links open in your browser** or mail app, never in Legible's window. A link that isn't secure
   (`http:`) asks first.
+- **Checking for updates is off until you turn it on** (Settings > General > Updates). Then,
+  straight away, each time Legible starts and when you choose **Check now**, it makes one request to GitHub for the address
+  of Legible's latest release (`https://github.com/Suremise/legible/releases/latest`, read but not
+  followed), which sends nothing but that request: no details of you, your PC or your documents
+  beyond what any web request carries, your IP address among them. A newer version gets a bar with
+  a link to its release page. Legible never downloads or installs anything by itself.
 
 ## Installing
 

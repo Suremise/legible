@@ -25,6 +25,8 @@ windows = { workspace = true, features = [
     "Win32_Foundation",
     "Win32_Globalization",
     "Win32_Graphics_Gdi",
+    # The update check's one request (win32::http), only when the reader turns it on.
+    "Win32_Networking_WinHttp",
     "Win32_Security",
     "Win32_Security_Authorization",
     "Win32_Storage_FileSystem",

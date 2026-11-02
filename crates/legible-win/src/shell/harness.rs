@@ -27,6 +27,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use legible_core::save::{Hooks, Stamp};
+use legible_core::update::Outcome;
 use tao::event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy, EventLoopWindowTarget};
 use tao::platform::run_return::EventLoopExtRunReturn;
 use tao::platform::windows::{EventLoopBuilderExtWindows, WindowExtWindows};
@@ -110,6 +111,10 @@ struct State {
     /// The next window's file, read as it opens, is held back; and those held, oldest first.
     hold_opened: bool,
     held_opened: VecDeque<(WindowId, Read)>,
+    /// The update check's answers, in turn (an error once they're used up), and how many
+    /// checks there have been.
+    updates: VecDeque<std::result::Result<Outcome, String>>,
+    update_checks: usize,
     /// The driver is done: the shell exits once its windows are closed.
     done: bool,
 }
@@ -189,6 +194,15 @@ impl StandIn for Host {
 
     fn stays(&self) -> bool {
         !lock(&self.0).done
+    }
+
+    fn update(&self) -> std::result::Result<Outcome, String> {
+        let mut state = lock(&self.0);
+        state.update_checks += 1;
+        state
+            .updates
+            .pop_front()
+            .unwrap_or_else(|| Err("no answer given".to_owned()))
     }
 }
 
@@ -635,6 +649,16 @@ impl Driver {
     /// a file that has gone.
     pub fn answer(&self, answer: SaveAnswer) {
         lock(&self.state).answers.push_back(answer);
+    }
+
+    /// The next update check's answer, in place of GitHub's.
+    pub fn answer_update(&self, answer: std::result::Result<Outcome, String>) {
+        lock(&self.state).updates.push_back(answer);
+    }
+
+    /// How many update checks there have been.
+    pub fn update_checks(&self) -> usize {
+        lock(&self.state).update_checks
     }
 
     /// How many questions the windows have asked.

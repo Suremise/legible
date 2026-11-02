@@ -122,7 +122,9 @@ where a reviewer can read them.
 - **Pass under load,** not only alone: every test runs beside all the others.
 - **Nothing outside temp folders:** no test writes to the real `%APPDATA%\Legible`, the real file
   associations or the real clipboard outside its test group.
-- **No network.** Legible makes no network calls, and nor do its tests.
+- **No network.** No test goes online. The update check, Legible's one network call (only when
+  the reader turns it on), is answered by the harness's stand-in in the window's tests, never by
+  GitHub, and its request is tested against a server of the test's own on the loopback address.
 - **No global keyboard or mouse input, ever,** in tests, probes or scripts: no SendKeys,
   SendInput, keybd_event or mouse_event, wscript or AutoHotkey, and no clicking at screen
   coordinates. It goes to whatever is in the foreground, which is the user's work. Drive
