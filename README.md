@@ -151,7 +151,11 @@ and if they match, choose **More info**, then **Run anyway**.
 
 ## Licence
 
-**MIT; every dependency is MIT or equally permissive; system fonts only.**
+**MIT; every dependency is MIT or equally permissive[^exceptions]; system fonts only.**
+
+[^exceptions]: With two exceptions, each shipped unmodified: cssparser and dtoa-short (MPL-2.0,
+    below), and Microsoft's C runtime, linked into `legible.exe` so it needs no Visual C++
+    Redistributable, under Microsoft's Visual Studio licence terms as Distributable Code.
 
 Legible's own code is under the [MIT licence](LICENSE). Every Rust crate it's built from is MIT,
 Apache-2.0, BSD, ISC, Zlib or similarly permissive, and the CI checks that with `cargo deny`, with

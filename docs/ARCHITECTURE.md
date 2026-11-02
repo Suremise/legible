@@ -1396,8 +1396,8 @@ decision, recorded here.
   crates in the Windows build (cargo-about, `about.toml` and `about.hbs`), then the copyright
   notices of every crate whose licence text there is a template (MIT's `<year> <copyright
   holders>`, BSD's `<year> <owner>`, Apache's `[yyyy]`), collected from its own licence and
-  notice files (the script fails if any such crate has none), and where the MPL-2.0 crates'
-  source is;
+  notice files (the script fails if any such crate has none), where the MPL-2.0 crates'
+  source is, and a hand-written entry for Microsoft's C runtime (below);
   part 2 is each bundled JavaScript file with its packages and their licence texts
   (`third_party/js/LICENSES.md` and `NOTICES.txt`). About opens it (its third-party software
   link), both packages ship it, and
@@ -1410,6 +1410,14 @@ decision, recorded here.
     open advisories. They ship unmodified, allowed by name and version in `deny.toml` (no other
     MPL crate passes), and are credited with where their source is in
     `third_party/rust/LICENSES.md`, for THIRD-PARTY-NOTICES.
+  - **Microsoft's C runtime, linked into the exe** (decided 1 Nov 2026, for every app of the
+    family): `+crt-static` (`.cargo/config.toml`) links the static `libcmt`, `libucrt` and
+    `libvcruntime` into legible.exe, unmodified, so it needs no Visual C++ redistributable and
+    no admin install. They ship under Microsoft's Visual Studio licence terms as "Distributable
+    Code", the licence rule's one native exception. Neither `cargo deny` nor cargo-about sees
+    native code, so `scripts/third-party-notices.ps1` writes their THIRD-PARTY-NOTICES entry by
+    hand, with a link to Microsoft's redistribution list; `package.ps1` checks the exe imports no
+    C runtime DLL (docs/RELEASING.md). It isn't a build-only tool: it ships inside the exe.
 
 ## Build-only tools
 

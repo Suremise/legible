@@ -5,7 +5,8 @@
     Part 1 is the crates of the Windows build (cargo-about, with about.toml and about.hbs),
     without dev or build dependencies, then the copyright notices of the crates whose licence
     text there is its template (see Get-CopyrightNotices), then where the source of the two
-    MPL-2.0 crates is (third_party/rust/LICENSES.md). Part 2 is the bundled JavaScript: each file,
+    MPL-2.0 crates is (third_party/rust/LICENSES.md), then a hand-written entry for Microsoft's C
+    runtime, linked into the exe, which neither cargo-about nor cargo deny sees. Part 2 is the bundled JavaScript: each file,
     the packages inside it with their versions and licences (third_party/js/LICENSES.md), then
     their licence texts (third_party/js/NOTICES.txt). Both third_party files are made by
     scripts/audit-js-licences.mjs when a pin moves.
@@ -145,8 +146,8 @@ try {
         "THIRD-PARTY NOTICES FOR LEGIBLE $version",
         '',
         'Legible is under the MIT licence (LICENSE, beside this file). It is built from the',
-        'third-party Rust crates in part 1, and it bundles the JavaScript in part 2. Their licences',
-        'and notices follow.',
+        'third-party Rust crates in part 1, with Microsoft''s C runtime linked in (at the end of',
+        'part 1), and it bundles the JavaScript in part 2. Their licences and notices follow.',
         '',
         $rule
     ) -join "`n"
@@ -167,6 +168,18 @@ try {
         $mpl += ''
     }
     $mpl = $mpl -join "`n"
+
+    # Microsoft's C runtime: linked into the exe (.cargo/config.toml, +crt-static), so neither
+    # cargo-about nor cargo deny sees it. Written by hand: the licence rule's one native
+    # exception (docs/ARCHITECTURE.md, Licences).
+    $crt = @($rule, 'Microsoft''s C runtime', '',
+        'legible.exe has parts of Microsoft''s C runtime linked into it, unmodified: the static',
+        'libraries libcmt, libucrt and libvcruntime of the Microsoft C++ Build Tools, so Legible',
+        'needs no Visual C++ Redistributable. They are Microsoft''s, under the Microsoft Visual',
+        'Studio licence terms, which allow them to ship inside an app as Distributable Code. They',
+        'aren''t under the MIT licence or any licence above. Microsoft''s list of Distributable',
+        'Code:',
+        '  https://learn.microsoft.com/visualstudio/releases/2022/redistribution', '') -join "`n"
 
     # Part 2: each bundled file and its packages, then their licence texts.
     $js = @($rule, 'PART 2: BUNDLED JAVASCRIPT', '',
@@ -194,7 +207,7 @@ try {
 
     $crateText = (Get-Content -Raw -Encoding utf8 $crates) -replace "`r`n", "`n"
     $copyrights = Get-CopyrightNotices $crateText $root
-    $text = ($header, $crateText.TrimEnd(), '', $copyrights, $mpl, ($js -join "`n"), '', $thin, $jsNotices.TrimEnd()) -join "`n"
+    $text = ($header, $crateText.TrimEnd(), '', $copyrights, $mpl, $crt, ($js -join "`n"), '', $thin, $jsNotices.TrimEnd()) -join "`n"
     $text = ($text -replace "`r`n", "`n") + "`n"
 
     # Every crate whose licence text above is a template has its own notices below it (a

@@ -1,8 +1,8 @@
 THIRD-PARTY NOTICES FOR LEGIBLE 0.2.0
 
 Legible is under the MIT licence (LICENSE, beside this file). It is built from the
-third-party Rust crates in part 1, and it bundles the JavaScript in part 2. Their licences
-and notices follow.
+third-party Rust crates in part 1, with Microsoft's C runtime linked in (at the end of
+part 1), and it bundles the JavaScript in part 2. Their licences and notices follow.
 
 ================================================================================
 PART 1: RUST CRATES
@@ -3993,6 +3993,17 @@ cssparser 0.38.0
 dtoa-short 0.3.5
   https://static.crates.io/crates/dtoa-short/dtoa-short-0.3.5.crate (SHA-256 cd1511a7b6a56299bd043a9c167a6d2bfb37bf84a6dfceaba651168adfb43c87)
   repository https://github.com/upsuper/dtoa-short
+
+================================================================================
+Microsoft's C runtime
+
+legible.exe has parts of Microsoft's C runtime linked into it, unmodified: the static
+libraries libcmt, libucrt and libvcruntime of the Microsoft C++ Build Tools, so Legible
+needs no Visual C++ Redistributable. They are Microsoft's, under the Microsoft Visual
+Studio licence terms, which allow them to ship inside an app as Distributable Code. They
+aren't under the MIT licence or any licence above. Microsoft's list of Distributable
+Code:
+  https://learn.microsoft.com/visualstudio/releases/2022/redistribution
 
 ================================================================================
 PART 2: BUNDLED JAVASCRIPT

@@ -60,10 +60,13 @@ Windows SmartScreen warns about both (see the checklist).
 | MSVC build tools and Windows SDK | Visual Studio's C++ build tools: the linker, `rc.exe`, and the C runtime's static libraries |
 
 **The C runtime is linked into the exe** (`.cargo/config.toml`, `+crt-static`), so it needs no
-Visual C++ redistributable, which would need an admin install. The parts of Microsoft's C runtime
-linked in are "Distributable Code" under the Visual Studio licence, which allows shipping them in
-an app; they need no entry in THIRD-PARTY-NOTICES. `package.ps1` checks the exe imports no C
-runtime DLL and nothing that isn't part of Windows.
+Visual C++ redistributable, which would need an admin install. It is the licence rule's one
+native exception (docs/ARCHITECTURE.md, Licences): the parts of Microsoft's C runtime linked in
+(the static `libcmt`, `libucrt` and `libvcruntime`, unmodified) aren't MIT or similar but
+"Distributable Code" under the Visual Studio licence terms, which allow shipping them in an app.
+`cargo deny` and cargo-about don't see them, so `scripts/third-party-notices.ps1` writes their
+entry in THIRD-PARTY-NOTICES by hand. `package.ps1` checks the exe imports no C runtime DLL and
+nothing that isn't part of Windows.
 
 **WiX 5, not cargo-wix or WiX 6+:** `cargo-wix` drives WiX 3, which needs the .NET Framework 3.5
 (an admin install); WiX 6 and later come with the Open Source Maintenance Fee terms. WiX 5 is
